@@ -182,15 +182,18 @@ class GameSession:
 7. 不要引入超自然元素（除非场景设定明确允许）。
 8. 叙事简洁，每次 3-5 句即可。"""
 
-    def _scene_context(self) -> str:
-        """生成场景锚点文本，注入每条 prologue prompt。"""
+    def _scene_context(self, prologue: bool = False) -> str:
+        """生成场景锚点文本，注入每条 prologue prompt。prologue=True 时屏蔽其他房间。"""
         name = self.scenario.get("name", "") if self.scenario else ""
         tone = self.scenario.get("scene_tone", "") if self.scenario else ""
         gm = self.scenario.get("gm_name", "") if self.scenario else ""
-        fr = self.scenario.get("floor_rooms", {}) if self.scenario else {}
-        current_floor = self.world.current_floor
-        rooms_here = fr.get(current_floor, [])
-        rooms_str = "、".join(rooms_here[:8]) if rooms_here else self.player_location
+        if prologue:
+            rooms_str = "（序章阶段，其他区域尚未探索，处于未知状态。所有人仍在初始区域内。）"
+        else:
+            fr = self.scenario.get("floor_rooms", {}) if self.scenario else {}
+            current_floor = self.world.current_floor
+            rooms_here = fr.get(current_floor, [])
+            rooms_str = "、".join(rooms_here[:8]) if rooms_here else self.player_location
         return (
             f"场景：{name}\n"
             f"基调：{tone}\n"
@@ -198,6 +201,15 @@ class GameSession:
             f"可前往：{rooms_str}\n"
             f"GM角色（登场前禁止出现）：{gm}"
         )
+
+    _LEAVE_KEYWORDS = (
+        "去", "走向", "离开", "推门", "前往", "出门", "出去", "走去",
+        "上楼", "下楼", "换个地方", "看看别处", "离开这里",
+        "走廊", "楼梯", "探索", "出去看看",
+    )
+
+    def _is_leave_attempt(self, choice: str) -> bool:
+        return any(kw in choice for kw in self._LEAVE_KEYWORDS)
 
     def _roster(self) -> str:
         chars = self.scenario.get("characters", {}) if self.scenario else {}
@@ -295,19 +307,24 @@ class GameSession:
         self._prologue_phase = "free"
         prompt = self._scene_prompt("camp", player_name=self.player_name, default=f"场景：{self.player_name}来到营地中央。")
         gm_name = self.scenario.get("gm_name", "")
-        initial_prompt = f"""{self._player_action_prefix()}
+        initial_prompt = f"""{self._scene_context(prologue=True)}
+
+{self._player_action_prefix()}
 {prompt}
 
 【当前房间设施】{self._room_features(self.player_location)}
 
 注意：
-- 所有描写必须符合【当前房间设施】。禁止编造设施之外的物品或环境。
+- 所有人——包括玩家和全部12名NPC——都聚集在相同的初始区域内，没有任何人离开过。
+- 禁止描述任何其他区域的具体样貌（所有人此刻都不知道其他地方是什么样子）。
+- 所有描写必须严格符合【当前房间设施】。禁止编造设施之外的物品或环境。
 - 禁止让{gm_name}在此场景中出现。此时尚未登场。
 - 以第三人称侧面描写 NPC，不要使用真名（用外貌特征描述）。
 - 背景：12 名少女都在场内。以下是她们的真实档案，请严格按其外貌、性格、行为特征撰写：
 {self._npc_profile_roster()}
 - 本轮只选 2-3 名性格冲突的 NPC 创作特写场景，其余一笔带过。
 - 保持直接叙述，300-400字即可。
+- 禁止生成涉及离开当前区域的选项（如"去XX房间""探索XX""走向XX"）。所有人此刻都在{self.player_location}内，还没有人离开过。
 
 末尾用以下精确格式输出 4 个互动选项：
 【选项】
@@ -318,7 +335,7 @@ D.选项内容"""
         text = self._safe_llm(self._prologue_context+[{"role":"user","content":initial_prompt}], self._pgm(), 1.0, 1024)
         options = self._parse_prologue_options(text)
         narrative = self._strip_prologue_options(text)
-        if not options: options = ["与附近的人交谈","独自探索周围环境","仔细观察这个场所","走向最近的一扇门"]
+        if not options: options = ["与附近的人交谈","仔细观察周围环境","静静等待事态发展","查看周围人的反应"]
         self._prologue_context.append({"role":"user","content":initial_prompt})
         self._prologue_context.append({"role":"assistant","content":text})
         self._player_action_log.append(f"进入场景：{self.player_location}。")
@@ -369,7 +386,7 @@ A. 进入游戏"""
 
         # === Phase "free" → "admin"：自由探索到管理员登场 ===
         if self._prologue_phase == "free":
-            if self._prologue_turn >= 3:
+            if self._prologue_turn >= 3 or self._is_leave_attempt(player_choice):
                 self._prologue_phase = "admin"
         if self._prologue_phase == "free":
             template = self._scene_prompt("free", default="")
@@ -379,23 +396,23 @@ A. 进入游戏"""
                         room=self.player_location,
                         room_features=self._room_features(self.player_location),
                         npc_profiles=self._npc_profile_roster(),
-                        scene_context=scene_ctx,
+                        scene_context=self._scene_context(prologue=True),
                         story_prefix=story_prefix,
                         player_choice=player_choice,
                     )
                 except (KeyError, ValueError):
                     template = ""
             if not template:
-                prompt = f"""{scene_ctx}
+                prompt = f"""{self._scene_context(prologue=True)}
 
 {story_prefix}玩家选择：{player_choice}
 
-描述接下来发生的事情。保持直接叙述。【当前房间设施】{self._room_features(self.player_location)}。禁止让{gm_name}出现。NPC 用外貌特征描述。
+描述接下来发生的事情。所有人仍在{self.player_location}内——没有任何人离开过初始区域。保持直接叙述。【当前房间设施】{self._room_features(self.player_location)}。禁止让{gm_name}出现。NPC 用外貌特征描述。
 
 NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
 {self._npc_profile_roster()}
 
-重要约束：严格按照【场景基调】描写环境。禁止编造场景中不存在的区域、建筑、设施或自然景观。所有人物在当前可前往的区域内活动。200-300字。
+重要约束：严格按照【场景基调】描写环境。禁止编造场景中不存在的区域、建筑、设施或自然景观。禁止描述任何初始区域以外的地方。禁止生成涉及离开当前区域的选项。200-300字。
 
 末尾输出4个选项：【选项】A. ... B. ... C. ... D. ..."""
             text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 1024)
@@ -404,7 +421,7 @@ NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
             self._prologue_context.append({"role":"assistant","content":text})
             options = self._parse_prologue_options(text)
             narrative = self._strip_prologue_options(text)
-            if not options: options = ["继续探索","与附近的人交谈","仔细观察","等待事态发展"]
+            if not options: options = ["与附近的人交谈","仔细观察周围环境","静静等待事态发展","查看周围人的反应"]
             self._player_action_log.append(f"玩家选择了：{player_choice}")
             return {"text": narrative, "options": options, "step": self.world.prologue_step}
 
@@ -477,7 +494,7 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
         self._prologue_context.append({"role":"assistant","content":text})
         options = self._parse_prologue_options(text)
         narrative = self._strip_prologue_options(text)
-        if not options: options = ["继续探索","与附近的人交谈","仔细观察","等待事态发展"]
+        if not options: options = ["继续观察","与附近的人交谈","仔细思考","等待事态发展"]
         self._player_action_log.append(f"玩家选择了：{player_choice}")
         if self.world.prologue_step == 6:
             return {"text": narrative, "options": options, "step": self.world.prologue_step, "rule": rule}

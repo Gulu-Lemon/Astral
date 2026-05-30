@@ -153,7 +153,9 @@ class NPCAgent:
         dia_parts = []
         for d in (p.recent_dialogue or []):
             if isinstance(d, dict):
-                dia_parts.append(f"{d.get('role','')}:{d.get('content','')}")
+                speaker = d.get('speaker', d.get('role', '?'))
+                content = str(d.get('content', d.get('text', '')))
+                dia_parts.append(f"{speaker}:{content}")
             elif isinstance(d, str):
                 dia_parts.append(d)
         dia_line = "最近的对话：" + "; ".join(dia_parts) if dia_parts else ""
