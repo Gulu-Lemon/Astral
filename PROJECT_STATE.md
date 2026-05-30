@@ -9,7 +9,8 @@
 ## 文件结构
 ```
 Astral/
-├── server.py              # Flask 服务端（37 API 端点）
+├── server.py              # Flask 入口（34 行，Blueprint 注册）
+├── session.py             # GameSession 编排器（1143 行）
 ├── state.py               # 核心数据结构（6 dataclass + 3 enum）
 ├── llm.py                 # 线程安全 LLM 客户端
 ├── agent_engine.py        # 12 独立 NPC Agent
@@ -20,6 +21,13 @@ Astral/
 ├── config_profiles.py     # API 多配置管理
 ├── save_manager.py        # 存档管理（自动 + 6 手动槽位）
 ├── debug.py               # 日志系统（4 个环形缓冲日志文件）
+├── blueprints/            # Flask Blueprint 路由模块（37 API）
+│   ├── prologue.py        # 序章 8 端点
+│   ├── game.py            # 游戏主循环 6 端点（含 SSE）
+│   ├── trial.py           # 审判 4 端点
+│   ├── save.py            # 存档/Load/新游戏 5 端点
+│   ├── settings.py        # API 配置/连接测试/shutdown 6 端点
+│   └── meta.py            # 场景/角色卡/状态/元指令 8 端点
 ├── scenarios/
 │   ├── __init__.py        # 场景注册/加载器
 │   ├── tianji_maze.py     # 天际迷宫

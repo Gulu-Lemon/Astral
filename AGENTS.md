@@ -9,7 +9,8 @@
 ## 项目架构概览
 
 ```
- 玩家浏览器 ←SSE→ server.py (Flask, 37 API)
+ 玩家浏览器 ←SSE→ server.py (Flask 入口, 34行)
+                  ↕ blueprints/ (6 路由模块, 37 API)
                         │
          ┌──────────────┼──────────────┐
          ▼              ▼              ▼
@@ -129,27 +130,38 @@ gm.py           ← Agent C (server.py: run_round, prologue)
 
 ## Agent C：服务端与基础设施 (Infrastructure)
 
-### 负责文件（4 个，共 1349 行）
+### 负责文件（9 个）
 
 | 文件 | 行数 | 角色 |
 |------|------|------|
-| `server.py` | ~1589 | Flask 37 API 端点 + GameSession 编排器 |
+| `server.py` | ~34 | Flask 入口 + Blueprint 注册 |
+| `session.py` | ~1143 | GameSession 编排器（从 server.py 提取） |
+| `blueprints/prologue.py` | ~60 | 序章 8 个端点 |
+| `blueprints/game.py` | ~200 | 游戏主循环 + dialogue + explore |
+| `blueprints/trial.py` | ~40 | 审判 4 个端点 |
+| `blueprints/save.py` | ~80 | 存档/Load/新游戏/场景切换 |
+| `blueprints/settings.py` | ~70 | API 配置 + 连接测试 + shutdown |
+| `blueprints/meta.py` | ~100 | 场景/角色卡/元指令/自由叙事/state |
 | `debug.py` | 151 | 4 个环形缓冲日志器 |
-| `save_manager.py` | 130 | 自动存档 + 6 手动槽位 |
-| `config_profiles.py` | 106 | API 多配置管理 |
+| `save_manager.py` | 147 | 自动存档 + 6 手动槽位 |
+| `config_profiles.py` | 169 | API 多配置管理 |
 
 ### 职责
 
-1. **server.py** — 整个项目的入口和编排层：
-   - `GameSession` 类：序章 7 步流程、游戏主循环 `run_round()`、审判流程
-   - 37 个 API 端点（详见 [PROTOCOL.md](PROTOCOL.md)）
-   - SSE 流式推送（ThreadPoolExecutor 8 workers）
-   - 时间推进系统：`_advance_time()` / `_broadcast_event()` / `_apply_daily_curse()`
-   - 楼层解锁：`_check_floor_unlock()`
-   - 阶段转换：`_check_phase_transition()`
-   - 尸体发现：`undiscovered_bodies` + `newly_discovered` 机制
-   - 审判自动启动：发现尸体 → `TrialState` 初始化 → 调查→陈述→辩论→论告→投票→处刑
-   - 模块级 `session` 全局变量
+1. **server.py** — 项目的入口和编排层：
+   - Flask 应用创建 + Blueprint 注册（~34 行）
+   - `GameSession` 类已提取到 `session.py`
+   - 37 个 API 端点分拆到 `blueprints/` 下 6 个模块
+
+1a. **session.py** — 游戏会话核心：
+    - `GameSession` 类：序章 7 步流程、游戏主循环 `run_round()`、审判流程
+    - SSE 流式推送（ThreadPoolExecutor 8 workers）
+    - 时间推进系统：`_advance_time()` / `_broadcast_event()` / `_apply_daily_curse()`
+    - 楼层解锁：`_check_floor_unlock()`
+    - 阶段转换：`_check_phase_transition()`
+    - 尸体发现：`undiscovered_bodies` + `newly_discovered` 机制
+    - 审判自动启动：发现尸体 → `TrialState` 初始化 → 调查→陈述→辩论→论告→投票→处刑
+    - 模块级 `session` 全局变量
 
 2. **debug.py** — 日志基础设施：
    - `RingBuffer`：固定容量（5000 行）文件环形缓冲
@@ -174,12 +186,13 @@ gm.py           ← Agent C (server.py: run_round, prologue)
 - **`save_manager.apply_loaded_state()` (第 84-124 行) 是存档恢复的核心**。每次 Agent A 修改 `WorldState` 的字段，此函数必须同步更新恢复逻辑。
 - **SSE 事件类型** (`run_round()` 中 push 的各种 `{"type": "..."}`) 必须与 Agent D 的 `app.js` 消费的事件类型一致。
 - `debug.py` 的日志文件路径约定（`logs/requests.log` 等）是诊断基础，不要随意改名。
-- **全局 `session` 变量**位于 server.py 模块作用域，是单例模式，注意多线程安全。
+- **全局 `session` 变量**位于 session.py 模块作用域，是单例模式，注意多线程安全。
 
 ### 被依赖关系
 
 ```
 server.py       ← Agent D (app.js 通过 SSE/API 消费)
+session.py      ← Agent B (agent_engine, arbiter, gm) + Agent C (blueprints)
 debug.py        ← Agent C 内部 (server 启动时 install_all)
 save_manager.py ← Agent C 内部 (server: save/load API)
 config_profiles.py ← Agent C 内部 (server: profiles API)
@@ -347,9 +360,24 @@ static/        ← 浏览器直接加载，通过 SSE/API 与 Agent C 通信
 - `snow_train.py`：5 节车厢线性连接，`FLOOR_TRANSITIONS` 使用房间名作键，补车厢连接通道特征和第 5 节车厢过渡
 - `tianji_maze.py`：删除重复 `import CharacterProfile`
 
+### 2026-05-30 — v1.2 server.py Blueprint 拆分
+
+**跨 Agent 变更：server.py 拆分为 session.py + 6 Blueprints**
+- Agent C（server.py/session.py/blueprints/）：1588 行 `server.py` 拆解为：
+  - `session.py`（1143 行）：`GameSession` 类 + 模块级 `session` 单例
+  - `blueprints/prologue.py`：序章 8 端点
+  - `blueprints/game.py`：游戏主循环 6 端点（含 SSE）
+  - `blueprints/trial.py`：审判 4 端点
+  - `blueprints/save.py`：存档 5 端点
+  - `blueprints/settings.py`：配置 6 端点
+  - `blueprints/meta.py`：场景/角色卡/元指令/状态 7 端点
+  - `server.py`：缩减至 34 行，仅 Flask 创建 + Blueprint 注册 + main()
+- Agent B/C：`session` 单例从 `session.py` 导入，路径 `from session import session`
+- Agent D：API 路径全部不变，SSE 事件格式不变
+
 ---
 
-*最后更新：2026-05-10 | 版本 v1.1*
+*最后更新：2026-05-30 | 版本 v1.2*
 
 ---
 
