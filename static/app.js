@@ -367,6 +367,7 @@ function startNewGame(){
 function startWithCard(){
   if(!S._selectedCard){startNewGame();return}
   var card=S._selectedCard;
+  showLoading(true,'角色载入中...');
   closeMainTabsAndShowPrologue();
   S.inPrologue=true;S.prologueStep=0;
   clearPrologueText();
@@ -374,6 +375,7 @@ function startWithCard(){
   // 镜像步骤：自动填入卡片的外貌
   fetch('/api/start_with_card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card_name:card.name})})
     .then(function(r){return r.json()}).then(function(d){
+      showLoading(false);
       if(!d.ok){startNewGame();return}
       addPrologueText(d.intro_text+'\n\n你的能力: '+d.magic);
       // 不跳过难度选择
