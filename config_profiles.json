@@ -1,0 +1,35 @@
+{
+  "profiles": [
+    {
+      "name": "Test",
+      "base_url": "https://y.com",
+      "api_key": "sk-original",
+      "model": "m2"
+    },
+    {
+      "name": "Gemini 3 Flash",
+      "base_url": "https://yinli.one/v1",
+      "api_key": "sk-ZtiPWGzQK68Y6ijZk6Qq8Nb99z8idakBEH9NDsQ4LdyiqJaf",
+      "model": "gemini-3-flash-preview"
+    },
+    {
+      "name": "DeepSeek v4 Flash",
+      "base_url": "https://api.deepseek.com",
+      "api_key": "sk-1cd0699ca23a4bedb6ac6bf3aaaed13f",
+      "model": "deepseek-v4-flash"
+    },
+    {
+      "name": "Gemini 3.1 Pro",
+      "base_url": "https://yinli.one/v1",
+      "api_key": "sk-YvVzHGX0HM2Og9joWGeYcBcDSm5k8zqj7EaZ57ed8KRbhAt3",
+      "model": "gemini-3.1-pro-preview"
+    },
+    {
+      "name": "DeepSeek v4 Pro",
+      "base_url": "https://api.deepseek.com",
+      "api_key": "sk-1cd0699ca23a4bedb6ac6bf3aaaed13f",
+      "model": "deepseek-v4-pro"
+    }
+  ],
+  "active": "DeepSeek v4 Flash"
+}

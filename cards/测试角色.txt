@@ -1,0 +1,4 @@
+name: 测试角色
+age: 14
+appearance: 红发双马尾
+magic: 操控火焰

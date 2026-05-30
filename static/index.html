@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Astral — 魔法少女的系列</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <span class="logo">&#9733; Astral</span>
+  <span id="scene-label" class="subtitle"></span>
+  <span id="player-inventory" class="inv-display"></span>
+  <span id="game-info"></span>
+  <div class="top-actions">
+    <span id="difficulty-badge"></span>
+    <span id="floor-badge"></span>
+    <button id="btn-newgame" title="开始新游戏" style="background:none;border:1px solid var(--accent);color:var(--accent);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">&#9654; 新游戏</button>
+    <button id="btn-settings" title="API 设置">&#9881;</button>
+    <button id="btn-save" title="存档管理">&#128190;</button>
+    <button id="btn-shutdown" title="关闭程序" onclick="shutdownServer()" style="background:none;border:1px solid var(--danger);color:var(--danger);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">&#9632; 退出</button>
+  </div>
+</header>
+
+<div id="map-strip" style="display:none;"></div>
+
+<div id="main-layout">
+  <!-- NPC 面板 -->
+  <aside id="npc-panel">
+    <div class="panel-header">角色 <span id="alive-count"></span></div>
+    <div id="npc-list"></div>
+  </aside>
+
+  <!-- 主区 -->
+  <main id="narrative-area">
+    <div id="narrative-content">
+      <!-- 序章画面 -->
+      <div id="prologue-screen" style="display:none;">
+        <div id="prologue-text" class="prologue-box"></div>
+        <div id="prologue-input">
+          <input type="text" id="prologue-field" placeholder="" maxlength="200">
+          <button id="prologue-btn">确定</button>
+        </div>
+        <div id="prologue-choices" style="display:none;">
+          <button class="choice-btn" data-mode="A">A. 剧情模式</button>
+          <button class="choice-btn" data-mode="B">B. 正常模式</button>
+          <button class="choice-btn" data-mode="C">C. 魔女模式</button>
+        </div>
+      </div>
+
+      <div id="scene-screen">
+        <h2>&#9733; Astral</h2>
+        <p>选择故事</p>
+        <div id="scene-list"></div>
+      </div>
+
+      <div id="intro-screen" style="display:none;">
+        <h2>&#9733; Astral</h2>
+        <p id="scene-title">选择角色</p>
+        <div id="card-list" class="card-grid"></div>
+        <div id="start-form">
+          <input type="text" id="input-name" placeholder="或手动输入名字" maxlength="20">
+          <span style="display:flex;gap:6px;align-items:center;">
+            <button id="btn-start" style="padding:10px 20px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">开始游戏</button>
+            <button id="btn-new-card" class="secondary">&#43; 新建角色卡</button>
+          </span>
+        </div>
+        <div style="margin-top:8px;"><button class="link-btn" id="btn-back-scene">&#8592; 返回选场景</button></div>
+      </div>
+
+      <div id="story-log"></div>
+
+      <div id="dialogue-box" style="display:none;">
+        <div class="dialogue-row dialogue-suggestions-row">
+          <span id="dialogue-target"></span>
+          <div id="dialogue-hints" class="dialogue-hints"></div>
+        </div>
+        <div class="dialogue-row dialogue-input-row">
+          <input type="text" id="input-message" placeholder="自由输入..." maxlength="200">
+          <button id="btn-send">发送</button>
+          <button id="btn-close-dialogue">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 审判横幅 -->
+    <div id="trial-banner" style="display:none;">
+      <div class="trial-icon">&#9878;</div>
+      <div id="trial-info">魔女审判</div>
+      <div id="trial-phases">
+        <span class="trial-phase-tag" data-phase="investigation">搜查</span>
+        <span class="trial-phase-tag" data-phase="court_statement">陈述</span>
+        <span class="trial-phase-tag" data-phase="court_debate">辩论</span>
+        <span class="trial-phase-tag" data-phase="closing">论告</span>
+        <span class="trial-phase-tag" data-phase="voting">投票</span>
+        <span class="trial-phase-tag" data-phase="execution">处刑</span>
+      </div>
+      <button id="trial-proceed-btn">推进审判</button>
+    </div>
+
+    <!-- 操作栏 -->
+    <nav id="action-bar"></nav>
+  </main>
+</div>
+
+<!-- 存档面板 -->
+<div id="save-panel" style="display:none;">
+  <div class="panel-overlay"></div>
+  <div class="panel-drawer">
+    <h3>存档管理</h3>
+    <div id="save-slots"></div>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px;">提示：读档后将推进一回合，建议在完成本轮操作后再存档。</p>
+    <button id="btn-close-save">关闭</button>
+  </div>
+</div>
+
+<!-- API 设置面板 -->
+<div id="settings-panel" style="display:none;">
+  <div class="modal-overlay"></div>
+  <div class="modal-content" style="width:520px;">
+    <h3>&#9881; API 配置</h3>
+    <div class="modal-scroll" style="max-height:62vh;overflow-y:auto;padding-right:4px;">
+      <div id="profile-list" style="margin-bottom:12px;"></div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;">
+        <div class="form-group"><label>配置名</label><input type="text" id="cfg-name" placeholder="例如：DeepSeek" maxlength="30"></div>
+        <div class="form-group"><label>接口地址</label><input type="text" id="cfg-url" placeholder="https://api.deepseek.com"></div>
+        <div class="form-group"><label>API Key</label><input type="password" id="cfg-key" placeholder="sk-..."></div>
+        <div class="form-group"><label>默认模型 <span style="font-size:10px;color:var(--text2);">(未单独指定时的回退模型)</span></label><input type="text" id="cfg-model" placeholder="deepseek-v4-pro"></div>
+        <div class="form-rule"></div>
+        <div class="form-row-2col">
+          <div class="form-group"><label>NPC Agent 模型</label><input type="text" id="cfg-agent-model" placeholder="留空使用默认" maxlength="40"></div>
+          <div class="form-group"><label>Arbiter 模型</label><input type="text" id="cfg-arbiter-model" placeholder="留空使用默认" maxlength="40"></div>
+        </div>
+        <div class="form-group"><label>GM 叙述模型</label><input type="text" id="cfg-gm-model" placeholder="留空使用默认" maxlength="40"></div>
+        <div class="form-rule"></div>
+        <div class="form-group"><label>温度 (Temperature) <span id="cfg-temp-val">1.0</span></label><input type="range" id="cfg-temp" min="0" max="2" step="0.1" value="1.0" oninput="document.getElementById('cfg-temp-val').textContent=this.value"></div>
+        <div class="form-group"><label>Top P <span id="cfg-topp-val">0.95</span></label><input type="range" id="cfg-topp" min="0" max="1" step="0.05" value="0.95" oninput="document.getElementById('cfg-topp-val').textContent=this.value"></div>
+      </div>
+    </div>
+    <div id="cfg-status" class="conn-checking" style="display:none;"></div>
+    <div class="modal-actions">
+      <button id="btn-cfg-save" class="primary">&#43; 添加/更新配置</button>
+      <button id="btn-cfg-test" class="secondary">测试当前</button>
+      <button id="btn-cfg-close" class="secondary">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 角色卡编辑器 -->
+<div id="card-editor" style="display:none;">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <h3 id="editor-title">新建角色卡</h3>
+    <div class="form-group"><label>名字</label><input type="text" id="edit-name" maxlength="20"></div>
+    <div class="form-group"><label>年龄</label><input type="text" id="edit-age" value="16" maxlength="3"></div>
+    <div class="form-group"><label>外貌</label><textarea id="edit-appearance" rows="2" maxlength="150" placeholder="黑色短发，蓝色眼睛..."></textarea></div>
+    <div class="form-group"><label>魔法能力</label><textarea id="edit-magic" rows="2" maxlength="200" placeholder="操控水流、时间减速..."></textarea></div>
+    <div class="form-group"><label>性格/语气（可选）</label><textarea id="edit-personality" rows="1" maxlength="100" placeholder="沉稳冷静 / 活泼开朗 / 话少但毒舌..."></textarea></div>
+    <div class="modal-actions">
+      <button id="btn-card-save" class="primary">保存</button>
+      <button id="btn-card-cancel" class="secondary">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 加载遮罩 -->
+<div id="loading-overlay" style="display:none;">
+  <div class="loading-spinner"></div>
+  <div id="loading-text">思考中...</div>
+  <div id="loading-progress"></div>
+</div>
+
+<!-- 调试面板 -->
+<div id="debug-panel" style="display:none;">
+  <div class="debug-header" onclick="toggleDebugPanel()">🔍 调试信息</div>
+  <div class="debug-body" style="display:block;">
+    <div id="debug-rulings"></div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
