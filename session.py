@@ -182,6 +182,23 @@ class GameSession:
 7. 不要引入超自然元素（除非场景设定明确允许）。
 8. 叙事简洁，每次 3-5 句即可。"""
 
+    def _scene_context(self) -> str:
+        """生成场景锚点文本，注入每条 prologue prompt。"""
+        name = self.scenario.get("name", "") if self.scenario else ""
+        tone = self.scenario.get("scene_tone", "") if self.scenario else ""
+        gm = self.scenario.get("gm_name", "") if self.scenario else ""
+        fr = self.scenario.get("floor_rooms", {}) if self.scenario else {}
+        current_floor = self.world.current_floor
+        rooms_here = fr.get(current_floor, [])
+        rooms_str = "、".join(rooms_here[:8]) if rooms_here else self.player_location
+        return (
+            f"场景：{name}\n"
+            f"基调：{tone}\n"
+            f"你在：{self.player_location}\n"
+            f"可前往：{rooms_str}\n"
+            f"GM角色（登场前禁止出现）：{gm}"
+        )
+
     def _roster(self) -> str:
         chars = self.scenario.get("characters", {}) if self.scenario else {}
         names = [c.name for _, c in sorted(chars.items())]
@@ -304,7 +321,7 @@ D.选项内容"""
         if not options: options = ["与附近的人交谈","独自探索周围环境","仔细观察这个场所","走向最近的一扇门"]
         self._prologue_context.append({"role":"user","content":initial_prompt})
         self._prologue_context.append({"role":"assistant","content":text})
-        self._player_action_log.append("序章开始：来到营地中央。")
+        self._player_action_log.append(f"进入场景：{self.player_location}。")
         return {"text": narrative, "options": options, "step": 4}
 
     def prologue_continue(self, player_choice: str):
@@ -313,6 +330,7 @@ D.选项内容"""
         rule = self.scenario.get("rule_text", "")
         story_prefix = self._player_action_prefix()
         scene_id = self.scene_id
+        scene_ctx = self._scene_context()
 
         # === Phase "chosen"：分组选择后 → 加入描述 + 唯一选项"进入游戏" ===
         if self._prologue_phase == "chosen":
@@ -354,12 +372,30 @@ A. 进入游戏"""
             if self._prologue_turn >= 3:
                 self._prologue_phase = "admin"
         if self._prologue_phase == "free":
-            prompt = f"""{story_prefix}玩家选择：{player_choice}
+            template = self._scene_prompt("free", default="")
+            if template:
+                try:
+                    prompt = template.format(
+                        room=self.player_location,
+                        room_features=self._room_features(self.player_location),
+                        npc_profiles=self._npc_profile_roster(),
+                        scene_context=scene_ctx,
+                        story_prefix=story_prefix,
+                        player_choice=player_choice,
+                    )
+                except (KeyError, ValueError):
+                    template = ""
+            if not template:
+                prompt = f"""{scene_ctx}
 
-描述接下来发生的事情。保持直接叙述。【当前房间】{self._room_features(self.player_location)}。禁止让{gm_name}出现。NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
+{story_prefix}玩家选择：{player_choice}
+
+描述接下来发生的事情。保持直接叙述。【当前房间设施】{self._room_features(self.player_location)}。禁止让{gm_name}出现。NPC 用外貌特征描述。
+
+NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
 {self._npc_profile_roster()}
 
-玩家只能在当前区域活动，不要生成离开当前区域的选项。200-300字。
+重要约束：严格按照【场景基调】描写环境。禁止编造场景中不存在的区域、建筑、设施或自然景观。所有人物在当前可前往的区域内活动。200-300字。
 
 末尾输出4个选项：【选项】A. ... B. ... C. ... D. ..."""
             text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 1024)
@@ -374,10 +410,17 @@ A. 进入游戏"""
 
         # === Phase "admin"：管理员登场/广播 + 规则宣布 → 选项=对规则的反应 ===
         if self._prologue_phase == "admin":
-            if scene_id == "snow_train":
-                admin_entry = f"列车长的声音从天花板上的扬声器中响起，带着轻微的电噪。广播系统发出「嗡——」的低频长音，随后是一声轻咳。「各位旅客，下午好。我是本次列车的列车长。请留意座椅口袋里的安全守则，仔细阅读。」广播在电流声中断开。他本人不会现身——只有这个声音在车厢中回荡。"
-            else:
-                admin_entry = f"经过一段时间的探索后，自然地引出了{gm_name}的出场。{gm_name}宣布了这里的规则。规则原文将由系统单独展示，你只需描写{gm_name}登场的气场和众人反应。"
+            admin_template = self._scene_prompt("admin", default="")
+            if admin_template:
+                try:
+                    admin_entry = admin_template.format(player_name=self.player_name, gm_name=gm_name)
+                except (KeyError, ValueError):
+                    admin_entry = ""
+            if not admin_entry:
+                if scene_id == "snow_train":
+                    admin_entry = f"列车长的声音从天花板上的扬声器中响起，带着轻微的电噪。广播系统发出「嗡——」的低频长音，随后是一声轻咳。「各位旅客，下午好。我是本次列车的列车长。请留意座椅口袋里的安全守则，仔细阅读。」广播在电流声中断开。他本人不会现身——只有这个声音在车厢中回荡。"
+                else:
+                    admin_entry = f"经过一段时间的探索后，自然地引出了{gm_name}的出场。{gm_name}宣布了这里的规则。规则原文将由系统单独展示，你只需描写{gm_name}登场的气场和众人反应。"
             prompt = f"""{story_prefix}玩家选择：{player_choice}
 
 {admin_entry}
@@ -396,12 +439,28 @@ D. 觉得荒谬/不以为然
             self._prologue_phase = "grouping"
         elif self._prologue_phase == "grouping":
             # === Phase "grouping"：分组场景 ===
-            prompt = f"""{story_prefix}玩家对规则做出了反应。
+            explore_template = self._scene_prompt("explore", default="")
+            if explore_template:
+                try:
+                    prompt = explore_template.format(
+                        story_prefix=story_prefix,
+                        scene_context=scene_ctx,
+                        player_name=self.player_name,
+                        npc_profiles=self._npc_profile_roster(),
+                    )
+                except (KeyError, ValueError):
+                    explore_template = ""
+            if not explore_template:
+                prompt = f"""{scene_ctx}
+
+{story_prefix}玩家对规则做出了反应。
 
 随后，一位有领导气质的NPC站了出来，提议大家分组探索这个场所以提高效率。其他人立刻开始争论——有人想和熟人一组，有人坚持独自行动，有人试图拉拢强者。在争论中逐渐形成了2-3个小组，另有1-2人选择独自探索。
 
 NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
 {self._npc_profile_roster()}
+
+重要约束：严格按照【场景基调】描写环境和分组探索方式。禁止编造不存在的区域。
 
 同一组的成员在争论后会进行简短的自我介绍——自然地写出1-2句互报姓名和基本情况的对话。用外貌特征引入角色，通过对话揭示姓名。
 
@@ -421,7 +480,7 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
         if not options: options = ["继续探索","与附近的人交谈","仔细观察","等待事态发展"]
         self._player_action_log.append(f"玩家选择了：{player_choice}")
         if self.world.prologue_step == 6:
-            return {"text": narrative, "options": options, "step": self.world.prologue_step, "rule": rule if self._prologue_phase == "grouping" else ""}
+            return {"text": narrative, "options": options, "step": self.world.prologue_step, "rule": rule}
         return {"text": narrative, "options": options, "step": self.world.prologue_step}
 
     def _generate_explore_scene(self):
@@ -452,14 +511,6 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
         if not self._player_action_log:
             return ""
         return "【玩家行动轨迹】\n" + "\n".join(f"- {b}" for b in self._player_action_log[-6:]) + "\n"
-
-    def prologue_step_5_explore(self):
-        self.world.prologue_step = 5
-        return "少女们分成几组开始探索周围的环境。"
-
-    def prologue_step_6_admin(self):
-        self.world.prologue_step = 6
-        return ""
 
     def prologue_finish(self):
         self.world.prologue_step = 7

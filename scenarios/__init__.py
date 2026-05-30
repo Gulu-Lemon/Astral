@@ -27,6 +27,7 @@ def add_module(module, scene_id: str = ""):
         "prologue_camp": getattr(module, "PROLOGUE_CAMP", ""),
         "prologue_explore": getattr(module, "PROLOGUE_EXPLORE", ""),
         "prologue_admin": getattr(module, "PROLOGUE_ADMIN", ""),
+        "prologue_free": getattr(module, "PROLOGUE_FREE", ""),
         "rule_text": getattr(module, "RULE_TEXT", ""),
         "trial_rules": getattr(module, "TRIAL_RULES", ""),
         "event_times": getattr(module, "EVENT_TIMES", []),

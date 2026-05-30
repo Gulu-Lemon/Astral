@@ -1,4 +1,4 @@
-"""Prologue blueprint — 8 endpoints."""
+"""Prologue blueprint — 6 endpoints."""
 from flask import Blueprint, request, jsonify
 import session as _sess
 
@@ -28,14 +28,6 @@ def api_prologue_continue():
     if result is None:
         return jsonify({"ok":False,"error":"序章推进失败：内部状态异常，请尝试重新开始游戏。"})
     return jsonify({"ok":True,"text":result["text"],"options":result["options"],"step":result["step"],"finished":result.get("finished",False),"rule":result.get("rule","")})
-
-@prologue_bp.route("/explore", methods=["GET"])
-def api_prologue_explore():
-    return jsonify({"ok":True,"step":5,"text":_sess.session.prologue_step_5_explore()})
-
-@prologue_bp.route("/admin", methods=["GET"])
-def api_admin():
-    return jsonify({"ok":True,"step":6,"text":_sess.session.prologue_step_6_admin()})
 
 @prologue_bp.route("/finish", methods=["POST"])
 def api_finish():
