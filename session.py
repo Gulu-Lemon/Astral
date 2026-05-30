@@ -202,14 +202,18 @@ class GameSession:
             f"GM角色（登场前禁止出现）：{gm}"
         )
 
-    _LEAVE_KEYWORDS = (
-        "去", "走向", "离开", "推门", "前往", "出门", "出去", "走去",
-        "上楼", "下楼", "换个地方", "看看别处", "离开这里",
-        "走廊", "楼梯", "探索", "出去看看",
-    )
-
     def _is_leave_attempt(self, choice: str) -> bool:
-        return any(kw in choice for kw in self._LEAVE_KEYWORDS)
+        result = self.llm.chat(
+            messages=[{"role":"user","content":
+                f"序章阶段，所有人都在【{self.player_location}】里，尚未去过任何其他地方。\n"
+                f"玩家刚刚做出了一个选择：\n"
+                f"「{choice}」\n\n"
+                f"判断：这个选择是否暗示玩家想要离开当前区域、去另一个房间或地点？\n"
+                f"只回答 YES 或 NO。"}],
+            system="你是一个精确的意图分类器。",
+            temperature=0.1, max_tokens=8,
+        )
+        return "YES" in result.upper()
 
     def _roster(self) -> str:
         chars = self.scenario.get("characters", {}) if self.scenario else {}
@@ -796,12 +800,12 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
     # ====== 序章输出校验 ======
 
     def _validate_prologue_output(self, text: str):
-        """轻量校验：真名泄露、异常叙事。非阻塞，仅日志警告。"""
+        """校验：真名泄露 + LLM 异常叙事检测。非阻塞，仅日志警告。"""
         if not text or len(text) < 20:
             return
         warnings = []
 
-        # 1. 真名泄露检测
+        # 1. 真名泄露检测（NPC 名册比对，结构匹配）
         chars = self.scenario.get("characters", {}) if self.scenario else {}
         for aid, cp in chars.items():
             if not cp.name or len(cp.name) < 2:
@@ -810,11 +814,21 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
                 ctx = self._snippet_around(text, cp.name, 30)
                 warnings.append(f"⚠ 真名泄露：{cp.name}({aid}) 尚未被玩家认识 → \"...{ctx}...\"")
 
-        # 2. 异常叙事关键词
-        anomaly_keywords = ["尸体", "死亡", "死了", "杀戮", "血迹", "魔法阵", "恶魔", "诅咒", "幽灵"]
-        found = [kw for kw in anomaly_keywords if kw in text]
-        if found:
-            warnings.append(f"⚠ 异常叙事关键词：{', '.join(found)}（序章不应出现）")
+        # 2. LLM 异常叙事检测
+        try:
+            result = self.llm.chat(
+                messages=[{"role":"user","content":
+                    f"序章阶段应当温馨安全，不应出现任何暴力、死亡、超自然恐怖或黑暗幻想元素。\n"
+                    f"检查以下文本是否包含不适合序章的内容：\n\n{text[:2000]}\n\n"
+                    f"只回答 SAFE 或 ANOMALY，ANOMALY 时用一句话说明原因。"}],
+                system="你是内容安全审查引擎。",
+                temperature=0.1, max_tokens=64,
+            )
+            if "ANOMALY" in result.upper():
+                reason = result.split("\n", 1)[0].replace("ANOMALY", "").strip()
+                warnings.append(f"⚠ LLM异常检测：{reason}")
+        except Exception as e:
+            warnings.append(f"⚠ 异常检测LLM调用失败：{str(e)[:100]}")
 
         for w in warnings:
             self._log("validate", w)
