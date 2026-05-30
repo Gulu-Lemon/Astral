@@ -1,7 +1,7 @@
 // Astral v0.6 Client
 var COLORS=['#58a6ff','#f0883e','#2ea043','#a371f7','#db61a2','#56d4dd','#f85149','#f7b73f','#8b949e','#3fb950','#e553b2','#79c0ff'];
 function el(s){return document.querySelector(s)}
-function bind(s,e,f){document.querySelector(s).addEventListener(e,f)}
+function bind(s,e,f){var node=document.querySelector(s);if(node)node.addEventListener(e,f)}
 
 var S={inPrologue:false,prologueStep:0,playersTurn:true,dialogueWith:null,npcData:[],_scene:'tianji_maze',_selectedCard:null,_cards:[],_cardWatch:null,debug:false};
 
@@ -14,8 +14,6 @@ document.addEventListener('DOMContentLoaded',function(){
     b.addEventListener('click',function(){switchTab(b.dataset.tab)});
   });
 
-  bind('#btn-start','click',startNewGame);
-  bind('#input-name','keydown',function(e){if(e.key==='Enter')startNewGame()});
   bind('#btn-send','click',sendDialogue);
   bind('#input-message','keydown',function(e){if(e.key==='Enter')sendDialogue()});
   bind('#btn-close-dialogue','click',closeDialogue);
@@ -45,6 +43,14 @@ document.addEventListener('DOMContentLoaded',function(){
   });
 
   initCardWatch();
+
+  // 直接获取卡片列表（SSE 回退）
+  fetch('/api/cards').then(function(r){return r.json()}).then(function(d){
+    if(!S._cards||S._cards.length===0){
+      S._cards=d.cards||[];
+      renderCardList(S._cards);
+    }
+  });
 
   fetch('/api/profiles').then(function(r){return r.json()}).then(function(pd){
     if((pd.profiles||[]).length===0||!pd.active){
