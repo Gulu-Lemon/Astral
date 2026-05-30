@@ -80,7 +80,7 @@ def api_cards_watch():
     """SSE 端点：每 2 秒检查 cards/ 目录变化，推送更新后的卡片列表。"""
     def generate():
         last_mtime = get_cards_mtime()
-        yield f"data: {json.dumps({'type':'cards_updated','cards':list_cards()}, ensure_ascii=False)}\n\n"
+        yield f"event: cards_updated\ndata: {json.dumps({'type':'cards_updated','cards':list_cards()}, ensure_ascii=False)}\n\n"
         while True:
             time.sleep(2)
             try:
@@ -88,7 +88,7 @@ def api_cards_watch():
                 if current != last_mtime:
                     last_mtime = current
                     cards = list_cards()
-                    yield f"data: {json.dumps({'type':'cards_updated','cards':cards}, ensure_ascii=False)}\n\n"
+                    yield f"event: cards_updated\ndata: {json.dumps({'type':'cards_updated','cards':cards}, ensure_ascii=False)}\n\n"
             except GeneratorExit:
                 break
             except Exception:

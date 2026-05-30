@@ -8,6 +8,11 @@ from typing import Optional
 
 CARDS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
 
+
+def ensure_dir():
+    os.makedirs(CARDS_DIR, exist_ok=True)
+
+
 # === 格式检测 ===
 
 def _detect_format(text: str) -> str:

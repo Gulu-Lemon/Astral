@@ -58,10 +58,10 @@ body {
 
 /* Narrative area */
 #narrative-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-#narrative-content { flex: 1; overflow-y: auto; padding: 16px 20px; line-height: 1.7; }
+#narrative-content { flex: 1; display:flex; flex-direction:column; overflow:hidden; line-height: 1.7; }
 
 /* Prologue */
-#prologue-screen { padding: 20px; }
+#prologue-screen { padding: 20px; flex:1; overflow-y:auto; }
 .prologue-box { background: var(--bg3); padding: 20px; border-radius: 8px; margin-bottom: 16px; min-height: 80px; white-space: pre-wrap; line-height: 1.8; font-size: 15px; }
 #prologue-input { display: flex; gap: 8px; }
 #prologue-input input { flex:1; padding:10px 14px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:14px; outline:none; }
@@ -201,6 +201,7 @@ body {
 .secondary { padding:6px 14px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:12px; }
 
 /* Story blocks */
+#story-log { padding:16px 20px; overflow-y:auto; }
 .story-block { margin-bottom:12px; animation: fadeIn .4s; }
 .story-block.gm { color:var(--text); }
 .story-block.system { color:var(--text2); font-style:italic; font-size:13px; }

@@ -123,6 +123,21 @@ function initCardWatch(){
         }
       }catch(ex){}
     });
+    // Fallback: handle messages without event type
+    S._cardWatch.addEventListener('message', function(e){
+      try {
+        var data = JSON.parse(e.data);
+        if(data.type==='cards_updated'){
+          S._cards = data.cards || [];
+          renderCardList(S._cards);
+          if(S._selectedCard){
+            var found = S._cards.find(function(c){return c.name===S._selectedCard.name});
+            if(!found){S._selectedCard=null;showCardPreviewEmpty()}
+            else{S._selectedCard=found;showCardPreview()}
+          }
+        }
+      }catch(ex){}
+    });
     S._cardWatch.onerror = function(){
       setTimeout(initCardWatch, 5000);
     };
