@@ -1,12 +1,6 @@
 {
   "profiles": [
     {
-      "name": "Test",
-      "base_url": "https://y.com",
-      "api_key": "sk-original",
-      "model": "m2"
-    },
-    {
       "name": "Gemini 3 Flash",
       "base_url": "https://yinli.one/v1",
       "api_key": "sk-ZtiPWGzQK68Y6ijZk6Qq8Nb99z8idakBEH9NDsQ4LdyiqJaf",
@@ -29,7 +23,18 @@
       "base_url": "https://api.deepseek.com",
       "api_key": "sk-1cd0699ca23a4bedb6ac6bf3aaaed13f",
       "model": "deepseek-v4-pro"
+    },
+    {
+      "name": "DeepSeek f-p-f",
+      "base_url": "https://api.deepseek.com",
+      "api_key": "sk-f07ca60b4af742f080debfcaa6eb2df1",
+      "model": "deepseek-v4-flash",
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "agent_model": "deepseek-v4-flash",
+      "arbiter_model": "deepseek-v4-pro",
+      "gm_model": "deepseek-v4-flash"
     }
   ],
-  "active": "DeepSeek v4 Flash"
+  "active": "DeepSeek f-p-f"
 }

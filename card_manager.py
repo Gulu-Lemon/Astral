@@ -1,5 +1,6 @@
 """
 角色卡管理 — 读取/写入/列出 cards/*.txt
+支持格式：star流（『』章节）、Ajisai（<#> markdown）、旧 key:value
 """
 import os
 import re
@@ -7,13 +8,239 @@ from typing import Optional
 
 CARDS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
 
+# === 格式检测 ===
 
-def ensure_dir():
-    os.makedirs(CARDS_DIR, exist_ok=True)
+def _detect_format(text: str) -> str:
+    if '<Ajisai_Character_Loader>' in text:
+        return "ajisai"
+    if re.search(r'『[^』]+』', text):
+        return "star"
+    if re.search(r'^##\s*', text, re.MULTILINE):
+        return "star"
+    return "legacy"
 
 
-def parse_card(text: str) -> dict:
-    card = {"name": "", "age": "16", "appearance": "", "magic": "", "personality": "", "raw": text}
+# === 通用章节提取 ===
+
+_STAR_SECTION_RE = re.compile(r'^『([^』]+)』\s*$', re.MULTILINE)
+_AJISAI_SECTION_RE = re.compile(r'^(?:##?\s+|#\s+)([^#\n]+)$', re.MULTILINE)
+_HASH_SECTION_RE = re.compile(r'^##\s*(.+?)\s*$', re.MULTILINE)
+_FIELD_RE = re.compile(r'^([^：:\s]+)\s*[：:]\s*(.*)$')
+
+
+def _clean_name(raw: str) -> str:
+    """去掉日文括号注音和多余空白。"""
+    return re.sub(r'\s*[（(][^)）]*[)）]\s*', '', raw).strip()
+
+
+def _clean_age(raw: str) -> str:
+    """从混合文本中提取数字年龄。"""
+    m = re.findall(r'\d+', str(raw))
+    return m[0] if m else "16"
+
+# 已知章节名 → 归一化键名
+_SECTION_MAP = {
+    "个人档案": "profile", "個": "profile",
+    "外貌形象": "appearance_section", "衣装": "appearance_section",
+    "背景经历": "background",
+    "性格调色盘": "personality_detail", "性格核心": "personality_detail",
+    "语料库": "dialogue_corpus", "Character_Dialogue_Corpus": "dialogue_corpus",
+    "重要关系": "relationships",
+    "行为边界": "boundaries",
+    "魔法能力": "magic_detail",
+}
+
+_VALID_FIELDS = frozenset({
+    "姓名", "名字", "name", "年龄", "age", "性别", "sex",
+    "生日", "birthday", "身高", "魔法", "magic", "魔法能力",
+    "身份", "identity", "血型", "体重",
+})
+
+
+def _extract_sections(text: str, section_re, strip_wrapper: str = None) -> dict[str, str]:
+    """用正则匹配章节标题的位置切分文本，返回 {章节名: 内容}。"""
+    if strip_wrapper:
+        text = re.sub(rf'</?{re.escape(strip_wrapper)}>', '', text)
+    matches = list(section_re.finditer(text))
+    if not matches:
+        return {"_preamble": text.strip()}
+    sections: dict[str, str] = {}
+    first_title = matches[0].group(1).strip()
+    if matches[0].start() > 0:
+        sections["_preamble"] = text[:matches[0].start()].strip()
+    for i, m in enumerate(matches):
+        title = m.group(1).strip()
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        content = text[start:end].strip()
+        sections[title] = content
+    return sections
+
+
+def _normalize_sections(raw_sections: dict[str, str]) -> dict[str, str]:
+    """将章节名归一化为英文键名。未知章节保留原文键名。"""
+    result: dict[str, str] = {}
+    for title, content in raw_sections.items():
+        normalized = title.strip().lstrip('#').strip()
+        mapped = None
+        for known, key in _SECTION_MAP.items():
+            if known in normalized:
+                mapped = key
+                break
+        if mapped:
+            result[mapped] = content
+        else:
+            result[normalized] = content
+    return result
+
+
+def _parse_profile_fields(section_text: str) -> dict[str, str]:
+    """从『个人档案』中提取结构化字段。支持多行续接。"""
+    fields: dict[str, str] = {}
+    current_key = None
+    for line in section_text.split('\n'):
+        m = _FIELD_RE.match(line.strip())
+        if m:
+            key = m.group(1).strip()
+            val = m.group(2).strip()
+            if key in _VALID_FIELDS:
+                if key in ("姓名", "名字"): fields["name"] = _clean_name(val); current_key = "name"
+                elif key in ("年龄", "age"): fields["age"] = _clean_age(val); current_key = "age"
+                elif key in ("魔法", "魔法能力", "magic"):
+                    if "magic" not in fields:
+                        fields["magic"] = val
+                    elif val:
+                        fields["magic"] += "\n" + val
+                    current_key = "magic"
+                elif key in ("性别", "sex"): fields["gender"] = val; current_key = None
+                elif key in ("身高",): fields["height"] = val; current_key = None
+                elif key in ("身份", "identity"): fields["identity"] = val; current_key = None
+                elif key in ("生日", "birthday"): fields["birthday"] = val; current_key = None
+                elif key in ("血型",): fields["blood_type"] = val; current_key = None
+                elif key in ("体重",): fields["weight"] = val; current_key = None
+            else:
+                current_key = None
+        elif current_key and line.strip():
+            fields[current_key] += "\n" + line.strip()
+    return fields
+
+
+# === star流 解析器 ===
+
+def _parse_star_card(text: str) -> dict:
+    """解析 star流 格式（『』章节）及 `##` 变体。"""
+    # 将 ## 标题 转换为 『标题』，统一格式
+    if re.search(r'^##\s*', text, re.MULTILINE) and not re.search(r'『[^』]+』', text):
+        text = _HASH_SECTION_RE.sub(r'『\1』', text)
+    raw = _extract_sections(text, _STAR_SECTION_RE)
+    sections = _normalize_sections(raw)
+
+    card: dict = {"name": "", "age": "16", "appearance": "", "magic": "", "personality": "",
+                  "background": "", "dialogue_corpus": "", "relationships": "",
+                  "boundaries": "", "other_sections": {}, "raw": text}
+
+    if "profile" in sections:
+        pf = _parse_profile_fields(sections["profile"])
+        card.update(pf)
+
+    if "appearance_section" in sections:
+        card["appearance"] = sections["appearance_section"]
+
+    if "background" in sections:
+        card["background"] = sections["background"]
+
+    if "personality_detail" in sections:
+        card["personality"] = sections["personality_detail"]
+
+    if "dialogue_corpus" in sections:
+        card["dialogue_corpus"] = sections["dialogue_corpus"]
+
+    if "relationships" in sections:
+        card["relationships"] = sections["relationships"]
+
+    if "boundaries" in sections:
+        card["boundaries"] = sections["boundaries"]
+
+    if "magic_detail" in sections:
+        card["magic"] = card.get("magic", "") or sections["magic_detail"]
+        if card["magic"] and sections["magic_detail"] and card["magic"] != sections["magic_detail"]:
+            card["magic"] += "\n\n" + sections["magic_detail"]
+
+    # 未知章节一律收集
+    known_keys = {"profile", "appearance_section", "background", "personality_detail",
+                  "dialogue_corpus", "relationships", "boundaries", "magic_detail"}
+    for key, content in sections.items():
+        if key not in known_keys and key != "_preamble":
+            card["other_sections"][key] = content
+
+    return card
+
+
+# === Ajisai 解析器 ===
+
+def _parse_ajisai_card(text: str) -> dict:
+    """解析 Ajisai 格式（<#> markdown 章节）。"""
+    stripped = re.sub(r'</?Ajisai_Character_Loader>', '', text)
+    # 提取 <tag> 包裹的内容块
+    tag_blocks: dict[str, str] = {}
+    for m in re.finditer(r'<([^>]+)>(.*?)</\1>', stripped, re.DOTALL):
+        tag_blocks[m.group(1)] = m.group(2).strip()
+    if "Character_Dialogue_Corpus" in tag_blocks:
+        stripped = re.sub(
+            r'<Character_Dialogue_Corpus>.*?</Character_Dialogue_Corpus>',
+            '', stripped, flags=re.DOTALL)
+
+    raw = _extract_sections(stripped, _AJISAI_SECTION_RE)
+    sections = _normalize_sections(raw)
+
+    card: dict = {"name": "", "age": "16", "appearance": "", "magic": "", "personality": "",
+                  "background": "", "dialogue_corpus": "", "relationships": "",
+                  "boundaries": "", "other_sections": {}, "raw": text}
+
+    if "profile" in sections:
+        pf = _parse_profile_fields(sections["profile"])
+        card.update(pf)
+
+    if "appearance_section" in sections:
+        card["appearance"] = sections["appearance_section"]
+
+    if "background" in sections:
+        card["background"] = sections["background"]
+
+    if "personality_detail" in sections:
+        card["personality"] = sections["personality_detail"]
+
+    # 语料库：优先用 <tag> 块，回退到章节
+    if "dialogue_corpus" in tag_blocks:
+        card["dialogue_corpus"] = tag_blocks["dialogue_corpus"]
+    elif "dialogue_corpus" in sections:
+        card["dialogue_corpus"] = sections["dialogue_corpus"]
+
+    for k in ("relationships", "boundaries", "magic_detail"):
+        if k in sections:
+            card[k] = sections[k]
+
+    # 合并 magic_detail 到 magic
+    if "magic_detail" in sections:
+        card["magic"] = card.get("magic", "") or sections["magic_detail"]
+        if card["magic"] and card.get("magic") != sections.get("magic_detail", ""):
+            card["magic"] += "\n\n" + sections["magic_detail"]
+
+    known_keys = {"profile", "appearance_section", "background", "personality_detail",
+                  "dialogue_corpus", "relationships", "boundaries", "magic_detail"}
+    for key, content in sections.items():
+        if key not in known_keys and key != "_preamble":
+            card["other_sections"][key] = content
+
+    return card
+
+
+# === 旧格式解析器 ===
+
+def _parse_legacy_card(text: str) -> dict:
+    card = {"name": "", "age": "16", "appearance": "", "magic": "", "personality": "",
+            "background": "", "dialogue_corpus": "", "relationships": "",
+            "boundaries": "", "other_sections": {}, "raw": text}
     current_key = None
     for line in text.split("\n"):
         line = line.strip()
@@ -30,6 +257,18 @@ def parse_card(text: str) -> dict:
         elif current_key and line:
             card[current_key] += "\n" + line
     return card
+
+
+# === 统一入口 ===
+
+def parse_card(text: str) -> dict:
+    fmt = _detect_format(text)
+    if fmt == "star":
+        return _parse_star_card(text)
+    elif fmt == "ajisai":
+        return _parse_ajisai_card(text)
+    else:
+        return _parse_legacy_card(text)
 
 
 def format_card(name: str, age: str, appearance: str, magic: str, personality: str = "") -> str:
