@@ -1,7 +1,8 @@
 """Meta blueprint — 7 endpoints: scenes, cards, start_with_card, meta, free_narrative, state, index."""
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, Response, send_from_directory, stream_with_context
+import json, time, threading
 from session import session
-from card_manager import list_cards, save_card, delete_card, get_card
+from card_manager import list_cards, save_card, delete_card, get_card, get_cards_mtime
 import scenarios
 
 meta_bp = Blueprint('meta', __name__)
@@ -67,11 +68,33 @@ def api_cards(): return jsonify({"cards":list_cards()})
 def api_save_card():
     d = request.get_json(); name = d.get("name","").strip()
     if not name: return jsonify({"ok":False,"error":"角色名不能为空"})
-    fname = save_card(name, d.get("age","16"), d.get("appearance",""), d.get("magic",""), d.get("personality",""))
+    fname = save_card(name, d.get("age","16"), d.get("appearance",""), d.get("magic",""),
+                      d.get("personality",""), d.get("raw_text",""))
     return jsonify({"ok":True,"filename":fname,"cards":list_cards()})
 
 @meta_bp.route("/api/cards/<name>", methods=["DELETE"])
 def api_delete_card(name: str): return jsonify({"ok":delete_card(name),"cards":list_cards()})
+
+@meta_bp.route("/api/cards/watch")
+def api_cards_watch():
+    """SSE 端点：每 2 秒检查 cards/ 目录变化，推送更新后的卡片列表。"""
+    def generate():
+        last_mtime = get_cards_mtime()
+        yield f"data: {json.dumps({'type':'cards_updated','cards':list_cards()}, ensure_ascii=False)}\n\n"
+        while True:
+            time.sleep(2)
+            try:
+                current = get_cards_mtime()
+                if current != last_mtime:
+                    last_mtime = current
+                    cards = list_cards()
+                    yield f"data: {json.dumps({'type':'cards_updated','cards':cards}, ensure_ascii=False)}\n\n"
+            except GeneratorExit:
+                break
+            except Exception:
+                pass
+    return Response(stream_with_context(generate()), mimetype="text/event-stream",
+                    headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
 @meta_bp.route("/api/start_with_card", methods=["POST"])
 def api_start_with_card():

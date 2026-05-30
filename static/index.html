@@ -26,15 +26,75 @@
 <div id="map-strip" style="display:none;"></div>
 
 <div id="main-layout">
-  <!-- NPC 面板 -->
   <aside id="npc-panel">
     <div class="panel-header">角色 <span id="alive-count"></span></div>
     <div id="npc-list"></div>
   </aside>
 
-  <!-- 主区 -->
   <main id="narrative-area">
     <div id="narrative-content">
+
+      <!-- 主界面标签导航 -->
+      <div id="main-tabs" class="tab-bar">
+        <button class="tab-btn active" data-tab="cards">&#128196; 角色卡</button>
+        <button class="tab-btn" data-tab="scene">&#127912; 选取场景</button>
+        <button class="tab-btn" data-tab="settings">&#9881; 设置</button>
+      </div>
+
+      <!-- 角色卡管理 -->
+      <div id="card-manager" class="split-pane">
+        <div class="card-list-panel">
+          <div class="card-toolbar">
+            <button id="btn-new-card" class="mini-btn primary">&#43; 新建</button>
+            <button id="btn-import-card" class="mini-btn">&#128230; 导入</button>
+          </div>
+          <div id="card-file-list"></div>
+          <div id="card-count" class="card-count"></div>
+        </div>
+        <div id="card-preview" class="card-preview-panel">
+          <div class="card-preview-empty">
+            <div style="font-size:48px;margin-bottom:16px;">&#128196;</div>
+            <div>选择一张角色卡查看详情</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:8px;">新建、导入或双击卡片使用</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 场景选择 -->
+      <div id="scene-screen" style="display:none;">
+        <h2>&#9733; Astral</h2>
+        <p>选择故事</p>
+        <div id="scene-list"></div>
+      </div>
+
+      <!-- 设置标签 -->
+      <div id="settings-tab" style="display:none;">
+        <h3>&#9881; API 配置</h3>
+        <div class="modal-scroll" style="max-height:62vh;overflow-y:auto;padding-right:4px;">
+          <div id="profile-list-inline" style="margin-bottom:12px;"></div>
+          <div style="border-top:1px solid var(--border);padding-top:12px;">
+            <div class="form-group"><label>配置名</label><input type="text" id="cfg-name" placeholder="例如：DeepSeek" maxlength="30"></div>
+            <div class="form-group"><label>接口地址</label><input type="text" id="cfg-url" placeholder="https://api.deepseek.com"></div>
+            <div class="form-group"><label>API Key</label><input type="password" id="cfg-key" placeholder="sk-..."></div>
+            <div class="form-group"><label>默认模型 <span style="font-size:10px;color:var(--text2);">(未单独指定时的回退模型)</span></label><input type="text" id="cfg-model" placeholder="deepseek-v4-pro"></div>
+            <div class="form-rule"></div>
+            <div class="form-row-2col">
+              <div class="form-group"><label>NPC Agent 模型</label><input type="text" id="cfg-agent-model" placeholder="留空使用默认" maxlength="40"></div>
+              <div class="form-group"><label>Arbiter 模型</label><input type="text" id="cfg-arbiter-model" placeholder="留空使用默认" maxlength="40"></div>
+            </div>
+            <div class="form-group"><label>GM 叙述模型</label><input type="text" id="cfg-gm-model" placeholder="留空使用默认" maxlength="40"></div>
+            <div class="form-rule"></div>
+            <div class="form-group"><label>温度 (Temperature) <span id="cfg-temp-val">1.0</span></label><input type="range" id="cfg-temp" min="0" max="2" step="0.1" value="1.0" oninput="document.getElementById('cfg-temp-val').textContent=this.value"></div>
+            <div class="form-group"><label>Top P <span id="cfg-topp-val">0.95</span></label><input type="range" id="cfg-topp" min="0" max="1" step="0.05" value="0.95" oninput="document.getElementById('cfg-topp-val').textContent=this.value"></div>
+          </div>
+        </div>
+        <div id="cfg-status" class="conn-checking" style="display:none;"></div>
+        <div class="modal-actions">
+          <button id="btn-cfg-save" class="primary">&#43; 添加/更新配置</button>
+          <button id="btn-cfg-test" class="secondary">测试当前</button>
+        </div>
+      </div>
+
       <!-- 序章画面 -->
       <div id="prologue-screen" style="display:none;">
         <div id="prologue-text" class="prologue-box"></div>
@@ -49,26 +109,6 @@
         </div>
       </div>
 
-      <div id="scene-screen">
-        <h2>&#9733; Astral</h2>
-        <p>选择故事</p>
-        <div id="scene-list"></div>
-      </div>
-
-      <div id="intro-screen" style="display:none;">
-        <h2>&#9733; Astral</h2>
-        <p id="scene-title">选择角色</p>
-        <div id="card-list" class="card-grid"></div>
-        <div id="start-form">
-          <input type="text" id="input-name" placeholder="或手动输入名字" maxlength="20">
-          <span style="display:flex;gap:6px;align-items:center;">
-            <button id="btn-start" style="padding:10px 20px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">开始游戏</button>
-            <button id="btn-new-card" class="secondary">&#43; 新建角色卡</button>
-          </span>
-        </div>
-        <div style="margin-top:8px;"><button class="link-btn" id="btn-back-scene">&#8592; 返回选场景</button></div>
-      </div>
-
       <div id="story-log"></div>
 
       <div id="dialogue-box" style="display:none;">
@@ -79,12 +119,11 @@
         <div class="dialogue-row dialogue-input-row">
           <input type="text" id="input-message" placeholder="自由输入..." maxlength="200">
           <button id="btn-send">发送</button>
-          <button id="btn-close-dialogue">✕</button>
+          <button id="btn-close-dialogue">&#10005;</button>
         </div>
       </div>
     </div>
 
-    <!-- 审判横幅 -->
     <div id="trial-banner" style="display:none;">
       <div class="trial-icon">&#9878;</div>
       <div id="trial-info">魔女审判</div>
@@ -99,7 +138,6 @@
       <button id="trial-proceed-btn">推进审判</button>
     </div>
 
-    <!-- 操作栏 -->
     <nav id="action-bar"></nav>
   </main>
 </div>
@@ -115,48 +153,23 @@
   </div>
 </div>
 
-<!-- API 设置面板 -->
-<div id="settings-panel" style="display:none;">
-  <div class="modal-overlay"></div>
-  <div class="modal-content" style="width:520px;">
-    <h3>&#9881; API 配置</h3>
-    <div class="modal-scroll" style="max-height:62vh;overflow-y:auto;padding-right:4px;">
-      <div id="profile-list" style="margin-bottom:12px;"></div>
-      <div style="border-top:1px solid var(--border);padding-top:12px;">
-        <div class="form-group"><label>配置名</label><input type="text" id="cfg-name" placeholder="例如：DeepSeek" maxlength="30"></div>
-        <div class="form-group"><label>接口地址</label><input type="text" id="cfg-url" placeholder="https://api.deepseek.com"></div>
-        <div class="form-group"><label>API Key</label><input type="password" id="cfg-key" placeholder="sk-..."></div>
-        <div class="form-group"><label>默认模型 <span style="font-size:10px;color:var(--text2);">(未单独指定时的回退模型)</span></label><input type="text" id="cfg-model" placeholder="deepseek-v4-pro"></div>
-        <div class="form-rule"></div>
-        <div class="form-row-2col">
-          <div class="form-group"><label>NPC Agent 模型</label><input type="text" id="cfg-agent-model" placeholder="留空使用默认" maxlength="40"></div>
-          <div class="form-group"><label>Arbiter 模型</label><input type="text" id="cfg-arbiter-model" placeholder="留空使用默认" maxlength="40"></div>
-        </div>
-        <div class="form-group"><label>GM 叙述模型</label><input type="text" id="cfg-gm-model" placeholder="留空使用默认" maxlength="40"></div>
-        <div class="form-rule"></div>
-        <div class="form-group"><label>温度 (Temperature) <span id="cfg-temp-val">1.0</span></label><input type="range" id="cfg-temp" min="0" max="2" step="0.1" value="1.0" oninput="document.getElementById('cfg-temp-val').textContent=this.value"></div>
-        <div class="form-group"><label>Top P <span id="cfg-topp-val">0.95</span></label><input type="range" id="cfg-topp" min="0" max="1" step="0.05" value="0.95" oninput="document.getElementById('cfg-topp-val').textContent=this.value"></div>
-      </div>
-    </div>
-    <div id="cfg-status" class="conn-checking" style="display:none;"></div>
-    <div class="modal-actions">
-      <button id="btn-cfg-save" class="primary">&#43; 添加/更新配置</button>
-      <button id="btn-cfg-test" class="secondary">测试当前</button>
-      <button id="btn-cfg-close" class="secondary">关闭</button>
-    </div>
-  </div>
-</div>
-
 <!-- 角色卡编辑器 -->
 <div id="card-editor" style="display:none;">
   <div class="modal-overlay"></div>
-  <div class="modal-content">
+  <div class="modal-content" style="max-width:620px;">
     <h3 id="editor-title">新建角色卡</h3>
-    <div class="form-group"><label>名字</label><input type="text" id="edit-name" maxlength="20"></div>
-    <div class="form-group"><label>年龄</label><input type="text" id="edit-age" value="16" maxlength="3"></div>
-    <div class="form-group"><label>外貌</label><textarea id="edit-appearance" rows="2" maxlength="150" placeholder="黑色短发，蓝色眼睛..."></textarea></div>
-    <div class="form-group"><label>魔法能力</label><textarea id="edit-magic" rows="2" maxlength="200" placeholder="操控水流、时间减速..."></textarea></div>
-    <div class="form-group"><label>性格/语气（可选）</label><textarea id="edit-personality" rows="1" maxlength="100" placeholder="沉稳冷静 / 活泼开朗 / 话少但毒舌..."></textarea></div>
+    <div class="form-row-2col">
+      <div class="form-group"><label>名字 *</label><input type="text" id="edit-name" maxlength="30" placeholder="风间 玫瑰"></div>
+      <div class="form-group"><label>年龄</label><input type="text" id="edit-age" value="16" maxlength="3"></div>
+    </div>
+    <div class="form-group"><label>外貌</label><textarea id="edit-appearance" rows="2" maxlength="300" placeholder="夹杂红色挑染的长直黑发，红瞳无光彩..."></textarea></div>
+    <div class="form-group"><label>魔法能力</label><textarea id="edit-magic" rows="2" maxlength="400" placeholder="【时间回溯】——回溯自身周围一定范围内的时间..."></textarea></div>
+    <div class="form-group"><label>性格（可选）</label><textarea id="edit-personality" rows="2" maxlength="200" placeholder="观察者气质，偏执的完美主义..."></textarea></div>
+    <div class="form-rule"></div>
+    <div class="form-group">
+      <label>星流文本 <span style="font-size:10px;color:var(--text2);">（粘贴含『章节』的完整角色卡，保留富格式）</span></label>
+      <textarea id="edit-raw-text" rows="8" maxlength="10000" placeholder="粘贴星流格式的角色卡全文...&#10;&#10;『个人档案』&#10;姓名：...&#10;年龄：...&#10;&#10;『外貌形象』&#10;...&#10;&#10;『背景经历』&#10;..."></textarea>
+    </div>
     <div class="modal-actions">
       <button id="btn-card-save" class="primary">保存</button>
       <button id="btn-card-cancel" class="secondary">取消</button>
@@ -164,16 +177,37 @@
   </div>
 </div>
 
-<!-- 加载遮罩 -->
+<!-- 导入角色卡对话框 -->
+<div id="import-card-dialog" style="display:none;">
+  <div class="modal-overlay"></div>
+  <div class="modal-content" style="max-width:560px;">
+    <h3>&#128230; 导入角色卡</h3>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">粘贴星流格式角色卡全文，或选择 .txt 文件导入。</p>
+    <div class="form-group">
+      <label>粘贴文本</label>
+      <textarea id="import-card-text" rows="10" maxlength="10000" placeholder="粘贴角色卡全文..."></textarea>
+    </div>
+    <div style="text-align:center;margin:8px 0;color:var(--text2);font-size:12px;">— 或 —</div>
+    <div class="form-group">
+      <label>选择文件</label>
+      <input type="file" id="import-card-file" accept=".txt" style="border:1px solid var(--border);padding:6px;border-radius:4px;width:100%;background:var(--bg);color:var(--text);">
+    </div>
+    <div id="import-card-status" style="font-size:11px;color:var(--accent2);margin-top:4px;display:none;"></div>
+    <div class="modal-actions">
+      <button id="btn-import-confirm" class="primary">导入</button>
+      <button id="btn-import-cancel" class="secondary">取消</button>
+    </div>
+  </div>
+</div>
+
 <div id="loading-overlay" style="display:none;">
   <div class="loading-spinner"></div>
   <div id="loading-text">思考中...</div>
   <div id="loading-progress"></div>
 </div>
 
-<!-- 调试面板 -->
 <div id="debug-panel" style="display:none;">
-  <div class="debug-header" onclick="toggleDebugPanel()">🔍 调试信息</div>
+  <div class="debug-header" onclick="toggleDebugPanel()">&#128269; 调试信息</div>
   <div class="debug-body" style="display:block;">
     <div id="debug-rulings"></div>
   </div>

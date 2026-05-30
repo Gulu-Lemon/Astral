@@ -303,22 +303,41 @@ def get_card(name: str) -> Optional[dict]:
     return None
 
 
-def save_card(name: str, age: str, appearance: str, magic: str, personality: str = "") -> str:
+def save_card(name: str, age: str, appearance: str, magic: str, personality: str = "",
+              raw_text: str = "") -> str:
     ensure_dir()
     safe = re.sub(r'[\\/:*?"<>|]', "", name)[:30]
     if not safe:
         safe = "unnamed"
     fname = f"{safe}.txt"
-    path = os.path.join(CARDS_DIR, fname)
-    content = format_card(name, age, appearance, magic, personality)
+    # 如果有星流原文，保留原格式；否则用旧格式
+    content = raw_text.strip() if raw_text.strip() else format_card(name, age, appearance, magic, personality)
     counter = 1
-    while os.path.exists(path):
-        fname = f"{safe}_{counter}.txt"
+    # 按文件名查找已有文件来覆盖（而非自动递增）
+    fn_to_delete = None
+    for existing in os.listdir(CARDS_DIR):
+        if existing.endswith(".txt"):
+            epath = os.path.join(CARDS_DIR, existing)
+            try:
+                with open(epath, "r", encoding="utf-8") as f:
+                    ecard = parse_card(f.read())
+                if ecard.get("name") == name:
+                    fn_to_delete = epath
+                    break
+            except Exception:
+                pass
+    if fn_to_delete:
+        os.remove(fn_to_delete)
+        path = fn_to_delete
+    else:
         path = os.path.join(CARDS_DIR, fname)
-        counter += 1
+        while os.path.exists(path):
+            fname = f"{safe}_{counter}.txt"
+            path = os.path.join(CARDS_DIR, fname)
+            counter += 1
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    return fname
+    return os.path.basename(path)
 
 
 def delete_card(name: str) -> bool:
@@ -335,3 +354,16 @@ def delete_card(name: str) -> bool:
         os.remove(fallback_path)
         return True
     return False
+
+
+def get_cards_mtime() -> float:
+    """返回 cards/ 目录下所有 .txt 文件的最新修改时间之和（用于变更检测）。"""
+    ensure_dir()
+    total = 0.0
+    for fname in os.listdir(CARDS_DIR):
+        if fname.endswith(".txt"):
+            try:
+                total += os.path.getmtime(os.path.join(CARDS_DIR, fname))
+            except OSError:
+                pass
+    return total

@@ -1,13 +1,18 @@
-// Astral v0.5 Client
+// Astral v0.6 Client
 var COLORS=['#58a6ff','#f0883e','#2ea043','#a371f7','#db61a2','#56d4dd','#f85149','#f7b73f','#8b949e','#3fb950','#e553b2','#79c0ff'];
 function el(s){return document.querySelector(s)}
 function bind(s,e,f){document.querySelector(s).addEventListener(e,f)}
 
-var S={inPrologue:false,prologueStep:0,playersTurn:true,dialogueWith:null,npcData:[],_scene:'tianji_maze',_selectedCard:null,debug:false};
+var S={inPrologue:false,prologueStep:0,playersTurn:true,dialogueWith:null,npcData:[],_scene:'tianji_maze',_selectedCard:null,_cards:[],_cardWatch:null,debug:false};
 
 // ====== INIT ======
 document.addEventListener('DOMContentLoaded',function(){
   if(window.location.search.includes('debug=1')) S.debug = true;
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(function(b){
+    b.addEventListener('click',function(){switchTab(b.dataset.tab)});
+  });
 
   bind('#btn-start','click',startNewGame);
   bind('#input-name','keydown',function(e){if(e.key==='Enter')startNewGame()});
@@ -15,140 +20,346 @@ document.addEventListener('DOMContentLoaded',function(){
   bind('#input-message','keydown',function(e){if(e.key==='Enter')sendDialogue()});
   bind('#btn-close-dialogue','click',closeDialogue);
   bind('#btn-save','click',toggleSave);
-  bind('#btn-settings','click',showSettings);
+  bind('#btn-settings','click',function(){switchTab('settings')});
   bind('#btn-cfg-save','click',saveSettings);
   bind('#btn-cfg-test','click',testAPIConnectionFromSettings);
-  bind('#btn-cfg-close','click',hideSettings);
   bind('#btn-newgame','click',newGameConfirm);
   bind('#btn-close-save','click',function(){el('#save-panel').style.display='none'});
   bind('.panel-overlay','click',function(){el('#save-panel').style.display='none'});
   bind('#trial-proceed-btn','click',trialProceed);
   bind('#prologue-btn','click',prologueSubmit);
   bind('#prologue-field','keydown',function(e){if(e.key==='Enter')prologueSubmit()});
-  bind('#btn-back-scene','click',showSceneSelection);
+  document.querySelectorAll('.choice-btn').forEach(function(b){b.addEventListener('click',function(){prologueChoose(b.dataset.mode)})});
   bind('#btn-new-card','click',showCardEditor);
+  bind('#btn-import-card','click',showImportDialog);
   bind('#btn-card-save','click',saveCardFromEditor);
   bind('#btn-card-cancel','click',hideCardEditor);
-  document.querySelectorAll('.choice-btn').forEach(function(b){b.addEventListener('click',function(){prologueChoose(b.dataset.mode)})});
+  bind('#btn-import-confirm','click',doImportCard);
+  bind('#btn-import-cancel','click',hideImportDialog);
+  bind('#import-card-file','change',handleImportFile);
 
   fetch('/api/scenes').then(function(r){return r.json()}).then(function(data){
     var list=el('#scene-list');
     if(!list)return;
-    list.innerHTML=data.scenes.map(function(s){return '<div class="scene-card" onclick="selectScene(\''+s.id+'\')"><div class="scene-name">'+s.name+'</div><div class="scene-desc">'+(s.desc||'')+'</div></div>'}).join('');
+    list.innerHTML=data.scenes.map(function(s){return '<div class="scene-card" onclick="useScene(\''+s.id+'\')"><div class="scene-name">'+s.name+'</div><div class="scene-desc">'+(s.desc||'')+'</div></div>'}).join('');
   });
 
-  fetch('/api/cards').then(function(r){return r.json()}).then(function(data){renderCards(data.cards)});
+  initCardWatch();
 
-  // 检查 API 配置，无配置时自动弹出设置面板
   fetch('/api/profiles').then(function(r){return r.json()}).then(function(pd){
     if((pd.profiles||[]).length===0||!pd.active){
-      setTimeout(function(){showSettings()},300);
+      setTimeout(function(){switchTab('settings')},300);
     }else if(pd.active){
-      // 有 active 配置，自动测试一次
       testAPIConnectionFromSettings();
     }
   });
 
   fetch('/api/state').then(function(r){return r.json()}).then(function(s){
     if(s.player_created&&s.prologue_step>=7){
-      el('#scene-screen').style.display='none';el('#intro-screen').style.display='none';el('#prologue-screen').style.display='none';
+      hideMainTabs();
       if(s.scene_name)el('#scene-label').textContent=s.scene_name;
       renderNPCs(s.npcs);updateInfo(s);
     }else if(s.player_created&&s.prologue_step>0&&s.prologue_step<7){
-      el('#scene-screen').style.display='none';el('#intro-screen').style.display='none';
+      hideMainTabs();
       S.inPrologue=true;S.prologueStep=s.prologue_step;
       el('#prologue-screen').style.display='block';
       if(s.prologue_step>=4){
-        // 步骤 4+：用 continue 流恢复
         addPrologueText('(继续游戏)');
         prologueContinue('继续探索');
       }else{
         addPrologueText('(续)');el('#prologue-field').placeholder='按确定...';el('#prologue-btn').textContent='继续';
         el('#prologue-field').dataset.step=String(s.prologue_step);el('#prologue-input').style.display='flex';
       }
-    }else{el('#scene-screen').style.display='block';el('#intro-screen').style.display='none';el('#prologue-screen').style.display='none'}
+    }else{
+      switchTab('cards');
+    }
   });
 });
 
-// ====== API CONNECTION TEST ======
-// 从设置面板中进行
-
-// ====== SCENE ======
-function selectScene(sid){
-  showLoading(true,'场景切换中...');
-  S._scene=sid;S._selectedCard=null;
-  fetch('/api/select_scene',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene_id:sid})})
-    .then(function(r){return r.json()}).then(function(d){
-      showLoading(false);
-      if(d.ok){el('#scene-label').textContent=d.scene_name||sid;el('#scene-title').textContent=d.scene_name||sid;el('#scene-screen').style.display='none';el('#intro-screen').style.display='block';el('#input-name').value='';el('#input-name').focus();fetch('/api/cards').then(function(r2){return r2.json()}).then(function(cd){renderCards(cd.cards)})}
-    });
+function hideMainTabs(){
+  el('#main-tabs').style.display='none';
+  el('#card-manager').style.display='none';
+  el('#scene-screen').style.display='none';
+  el('#settings-tab').style.display='none';
 }
-function showSceneSelection(){el('#intro-screen').style.display='none';el('#prologue-screen').style.display='none';el('#scene-screen').style.display='block'}
 
-// ====== CARDS ======
-function renderCards(cards){
-  var list=el('#card-list');
+// ====== TAB SWITCH ======
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab)});
+  el('#card-manager').style.display=tab==='cards'?'flex':'none';
+  el('#scene-screen').style.display=tab==='scene'?'block':'none';
+  el('#settings-tab').style.display=tab==='settings'?'block':'none';
+  el('#prologue-screen').style.display='none';
+  if(tab==='scene'){
+    fetch('/api/scenes').then(function(r){return r.json()}).then(function(d){
+      var list=el('#scene-list');if(!list)return;
+      list.innerHTML=d.scenes.map(function(s){return '<div class="scene-card'+(S._scene===s.id?' current':'')+'" onclick="useScene(\''+s.id+'\')"><div class="scene-name">'+s.name+'</div><div class="scene-desc">'+(s.desc||'')+'</div></div>'}).join('');
+    });
+  }
+  if(tab==='settings'){
+    loadProfiles();
+  }
+}
+
+function closeMainTabsAndShowPrologue(){
+  hideMainTabs();
+  el('#prologue-screen').style.display='block';
+}
+
+// ====== CARD WATCH (SSE hot reload) ======
+function initCardWatch(){
+  if(S._cardWatch){S._cardWatch.close();S._cardWatch=null}
+  try {
+    S._cardWatch = new EventSource('/api/cards/watch');
+    S._cardWatch.addEventListener('cards_updated', function(e){
+      try {
+        var data = JSON.parse(e.data);
+        S._cards = data.cards || [];
+        renderCardList(S._cards);
+        if(S._selectedCard){
+          var found = S._cards.find(function(c){return c.name===S._selectedCard.name});
+          if(!found){S._selectedCard=null;showCardPreviewEmpty()}
+          else{S._selectedCard=found;showCardPreview()}
+        }
+      }catch(ex){}
+    });
+    S._cardWatch.onerror = function(){
+      setTimeout(initCardWatch, 5000);
+    };
+  }catch(e){
+    setTimeout(initCardWatch, 5000);
+  }
+}
+
+// ====== CARD LIST ======
+function renderCardList(cards){
+  var list = el('#card-file-list');
+  var count = el('#card-count');
   if(!list)return;
-  if(!S._selectedCard && cards.length>0) S._selectedCard=cards[0];
+  if(!cards||cards.length===0){
+    list.innerHTML='<div style="padding:12px;font-size:12px;color:var(--text2);">暂无角色卡</div>';
+    if(count)count.textContent='0 张卡片';
+    return;
+  }
   list.innerHTML=cards.map(function(c,i){
-    var sel=S._selectedCard&&S._selectedCard.name===c.name?' selected':'';
-    var extra=c.personality?' <span style="font-size:10px;color:var(--text2)">['+c.personality+']</span>':'';
-    return '<div class="card-item'+sel+'" onclick="selectCard('+i+')"><div class="ci-name">'+c.name+'</div><div class="ci-magic">'+c.magic+extra+'</div></div>';
+    var active=S._selectedCard&&S._selectedCard.name===c.name?' active':'';
+    var magicShort=c.magic?c.magic.replace(/\n/g,' ').substring(0,40):'';
+    if(magicShort.length>=40)magicShort+='...';
+    return '<div class="card-file-item'+active+'" onclick="selectCard('+i+')" ondblclick="useCard()">'
+      +'<div class="cfi-name">'+escHtml(c.name)+'</div>'
+      +'<div class="cfi-meta">'+(c.age||'?')+'岁 · '+escHtml(magicShort||'（无描述）')+'</div>'
+      +'</div>';
   }).join('');
-}
-function selectCard(idx){
-  fetch('/api/cards').then(function(r){return r.json()}).then(function(data){
-    var cards=data.cards;
-    if(idx>=0&&idx<cards.length)S._selectedCard=cards[idx];
-    renderCards(cards);
-  });
-}
-function startWithCard(){
-  if(!S._selectedCard){startNewGame();return}
-  showLoading(true,'角色载入中...');
-  var card=S._selectedCard;
-  fetch('/api/start_with_card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card_name:card.name})})
-    .then(function(r){return r.json()}).then(function(d){
-      if(!d.ok){startNewGame();return}
-      // 跳过镜子魔法步骤，直接进难度选择
-      el('#intro-screen').style.display='none';el('#prologue-screen').style.display='block';
-      S.inPrologue=true;S.prologueStep=1;
-      showLoading(false);
-      clearPrologueText();
-      addPrologueText(d.intro_text+'\n\n你的能力: '+d.magic);
-      el('#prologue-field').dataset.step='3';el('#prologue-input').style.display='none';el('#prologue-choices').style.display='flex';
-    });
+  if(count)count.textContent=cards.length+' 张卡片';
 }
 
-// ====== CARD EDITOR ======
+function selectCard(idx){
+  if(idx>=0&&idx<S._cards.length){
+    S._selectedCard=S._cards[idx];
+    renderCardList(S._cards);
+    showCardPreview();
+  }
+}
+
+function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ====== CARD PREVIEW ======
+function showCardPreview(){
+  var panel=el('#card-preview');
+  if(!panel||!S._selectedCard)return;
+  var c=S._selectedCard;
+  var html='';
+  html+='<div class="card-preview-header">';
+  html+='<h2>'+escHtml(c.name)+'</h2>';
+  html+='<div class="card-preview-meta">';
+  html+='<span>'+escHtml(c.age||'?')+'岁</span>';
+  html+='<span style="margin-left:8px;font-size:11px;color:var(--text2);">'+escHtml(c.filename||'')+'</span>';
+  html+='</div>';
+  html+='</div>';
+
+  if(c.magic){
+    html+='<div class="card-section"><h4>魔法</h4><div class="card-section-body">'+escHtml(c.magic)+'</div></div>';
+  }
+  if(c.appearance){
+    html+='<div class="card-section"><h4>外貌</h4><div class="card-section-body">'+escHtml(c.appearance)+'</div></div>';
+  }
+  if(c.personality){
+    var persText=c.personality;
+    if(persText.length>500)persText=persText.substring(0,500)+'...';
+    html+='<div class="card-section"><h4>性格</h4><div class="card-section-body">'+escHtml(persText)+'</div></div>';
+  }
+  if(c.background){
+    var bgText=c.background;
+    if(bgText.length>800)bgText=bgText.substring(0,800)+'...';
+    html+='<div class="card-section"><h4>背景经历</h4><div class="card-section-body">'+escHtml(bgText)+'</div></div>';
+  }
+  if(c.dialogue_corpus){
+    var dcText=c.dialogue_corpus;
+    if(dcText.length>500)dcText=dcText.substring(0,500)+'...';
+    html+='<div class="card-section"><h4>语料库</h4><div class="card-section-body">'+escHtml(dcText)+'</div></div>';
+  }
+  if(c.relationships){
+    var relText=c.relationships;
+    if(relText.length>300)relText=relText.substring(0,300)+'...';
+    html+='<div class="card-section"><h4>重要关系</h4><div class="card-section-body">'+escHtml(relText)+'</div></div>';
+  }
+  if(c.boundaries){
+    var bndText=c.boundaries;
+    if(bndText.length>300)bndText=bndText.substring(0,300)+'...';
+    html+='<div class="card-section"><h4>行为边界</h4><div class="card-section-body">'+escHtml(bndText)+'</div></div>';
+  }
+  var other=c.other_sections||{};
+  var okeys=Object.keys(other);
+  if(okeys.length>0){
+    html+='<div class="card-section"><h4>其他</h4>';
+    okeys.forEach(function(k){
+      var oc=other[k]||'';
+      if(oc.length>300)oc=oc.substring(0,300)+'...';
+      html+='<div style="margin-bottom:8px;"><strong>'+escHtml(k)+'</strong></div><div class="card-section-body">'+escHtml(oc)+'</div>';
+    });
+    html+='</div>';
+  }
+
+  html+='<div class="card-preview-actions">';
+  html+='<button class="mini-btn primary" onclick="editCard()">&#9998; 编辑</button>';
+  html+='<button class="mini-btn danger" onclick="deleteCard()">&#128465; 删除</button>';
+  html+='<button class="mini-btn accent" onclick="useCard()" style="background:var(--accent);color:#fff;">&#9654; 使用此卡开始</button>';
+  html+='</div>';
+
+  panel.innerHTML=html;
+}
+
+function showCardPreviewEmpty(){
+  var panel=el('#card-preview');
+  if(!panel)return;
+  panel.innerHTML='<div class="card-preview-empty">'
+    +'<div style="font-size:48px;margin-bottom:16px;">&#128196;</div>'
+    +'<div>选择一张角色卡查看详情</div>'
+    +'<div style="font-size:11px;color:var(--text2);margin-top:8px;">新建、导入或双击卡片使用</div>'
+    +'</div>';
+}
+
+// ====== CARD CRUD ======
+function editCard(){
+  if(!S._selectedCard)return;
+  showCardEditor();
+}
+
 function showCardEditor(){
   var card=S._selectedCard||{};
-  el('#editor-title').textContent=card.name?'编辑角色卡':'新建角色卡';
+  el('#editor-title').textContent=card.name?'编辑角色卡 — '+card.name:'新建角色卡';
   el('#edit-name').value=card.name||'';
   el('#edit-age').value=card.age||'16';
   el('#edit-appearance').value=card.appearance||'';
   el('#edit-magic').value=card.magic||'';
-  el('#edit-personality').value=card.personality||'';
+  el('#edit-personality').value=(card.personality||'').length>200?card.personality.substring(0,200):(card.personality||'');
+  el('#edit-raw-text').value=card.raw||'';
   el('#card-editor').style.display='block';
 }
 function hideCardEditor(){el('#card-editor').style.display='none'}
+
 function saveCardFromEditor(){
-  var name=el('#edit-name').value.trim();var age=el('#edit-age').value.trim();var appear=el('#edit-appearance').value.trim();var magic=el('#edit-magic').value.trim();var personality=el('#edit-personality').value.trim();
+  var name=el('#edit-name').value.trim();
   if(!name){alert('请输入名字');return}
-  fetch('/api/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,age:age,appearance:appear,magic:magic,personality:personality})})
+  var body={name:name,age:el('#edit-age').value.trim(),appearance:el('#edit-appearance').value.trim(),magic:el('#edit-magic').value.trim(),personality:el('#edit-personality').value.trim(),raw_text:el('#edit-raw-text').value.trim()};
+  fetch('/api/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){S._selectedCard={name:name,age:age,appearance:appear,magic:magic,personality:personality};renderCards(d.cards);hideCardEditor()}
+      if(d.ok){hideCardEditor();S._selectedCard=null}
       else alert(d.error||'保存失败');
     });
 }
 
-// ====== NEW GAME ======
+function deleteCard(){
+  if(!S._selectedCard)return;
+  if(!confirm('确认删除角色卡 "'+S._selectedCard.name+'"？\n此操作不可撤销，将删除对应的 .txt 文件。'))return;
+  var name=S._selectedCard.name;
+  fetch('/api/cards/'+encodeURIComponent(name),{method:'DELETE'})
+    .then(function(r){return r.json()}).then(function(d){
+      if(!d.ok)alert('删除失败');
+      S._selectedCard=null;
+      showCardPreviewEmpty();
+    });
+}
+
+function showImportDialog(){
+  el('#import-card-text').value='';
+  el('#import-card-file').value='';
+  el('#import-card-status').style.display='none';
+  el('#import-card-dialog').style.display='block';
+}
+function hideImportDialog(){el('#import-card-dialog').style.display='none'}
+
+function handleImportFile(e){
+  var file=e.target.files[0];
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    el('#import-card-text').value=ev.target.result;
+    el('#import-card-status').textContent='已加载: '+file.name;
+    el('#import-card-status').style.display='block';
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+function doImportCard(){
+  var text=el('#import-card-text').value.trim();
+  if(!text){alert('请粘贴角色卡文本或选择文件');return}
+  fetch('/api/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'_import_temp',age:'16',appearance:'',magic:'',personality:'',raw_text:text})})
+    .then(function(r){return r.json()}).then(function(d){
+      hideImportDialog();
+      if(!d.ok&&d.error)alert('导入失败: '+d.error);
+    });
+}
+
+function useCard(){
+  if(!S._selectedCard)return;
+  if(!S._scene||S._scene==='tianji_maze'){
+    switchTab('scene');
+    setTimeout(function(){alert('请先在上方选择场景，再使用角色卡。')},200);
+    return;
+  }
+  startWithCard();
+}
+
+function useScene(sid){
+  showLoading(true,'场景切换中...');
+  S._scene=sid;
+  fetch('/api/select_scene',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene_id:sid})})
+    .then(function(r){return r.json()}).then(function(d){
+      showLoading(false);
+      if(d.ok){
+        el('#scene-label').textContent=d.scene_name||sid;
+        switchTab('cards');
+      }
+    });
+}
+
+// ====== START GAME ======
 function startNewGame(){
   if(S._selectedCard){startWithCard();return}
-  var name=el('#input-name').value.trim()||'玩家';
-  el('#intro-screen').style.display='none';el('#prologue-screen').style.display='block';
+  var name=el('#input-name')?el('#input-name').value.trim()||'玩家':'玩家';
+  closeMainTabsAndShowPrologue();
   S.inPrologue=true;S.prologueStep=0;
   prologueStep1(name);
+}
+
+function startWithCard(){
+  if(!S._selectedCard){startNewGame();return}
+  var card=S._selectedCard;
+  closeMainTabsAndShowPrologue();
+  S.inPrologue=true;S.prologueStep=0;
+  clearPrologueText();
+
+  // 镜像步骤：自动填入卡片的外貌
+  fetch('/api/start_with_card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card_name:card.name})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(!d.ok){startNewGame();return}
+      addPrologueText(d.intro_text+'\n\n你的能力: '+d.magic);
+      // 不跳过难度选择
+      el('#prologue-field').dataset.step='3';
+      el('#prologue-input').style.display='none';
+      el('#prologue-choices').style.display='flex';
+    });
 }
 
 // ====== PROLOGUE ======
@@ -197,509 +408,278 @@ function prologueStep4(){
     if(d.options&&d.options.length>0){
       showPrologueOptions(d.options);
     }else{
-      el('#prologue-field').dataset.step='5';showPrologueInput('按确定继续...','继续');
+      prologueContinue(d.text||'');
     }
   });
-}
-
-function showPrologueOptions(opts){
-  var choices=el('#prologue-choices');
-  choices.innerHTML=opts.map(function(o,i){
-    var label=String.fromCharCode(65+i); // A, B, C, D
-    return '<button class="choice-btn prologue-opt" data-choice="'+esc(o)+'">'+label+'. '+o+'</button>';
-  }).join('');
-  choices.style.display='flex';
-  el('#prologue-input').style.display='none';
-  document.querySelectorAll('.prologue-opt').forEach(function(b){
-    b.addEventListener('click',function(){prologueContinue(b.dataset.choice)});
-  });
-}
-
-function prologueContinue(choice){
-  showLoading(true,'推进中...');
-  fetch('/api/prologue/continue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:choice})})
-    .then(function(r){return r.json()}).then(function(d){
-      showLoading(false);
-      if(d.finished){prologueFinish();return}
-    addPrologueText(d.text);
-    if(d.rule){addRuleText(d.rule)}
-    if(d.options&&d.options.length>0){
-      showPrologueOptions(d.options);
-    }else{
-      el('#prologue-field').dataset.step=String(d.step||4);
-      showPrologueInput('输入你的行动或按确定继续...','继续');
-    }
-    });
-}
-
-function prologueStep5(){prologueContinue('继续探索');}
-function prologueStep6(){prologueContinue('确认进入');}
-
-function prologueFinish(){
-  hidePrologueInput();
-  fetch('/api/prologue/finish',{method:'POST'}).then(function(){S.inPrologue=false;el('#prologue-screen').style.display='none';refreshState();nextRound()});
 }
 
 function prologueSubmit(){
   var f=el('#prologue-field');var step=f.dataset.step;var val=f.value.trim();
-  if(step==='1a'){if(!val)return;showLoading(true,'生成角色中...');fetch('/api/prologue/mirror',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:f.dataset.name,age:'16',appearance:val})}).then(function(r){return r.json()}).then(function(d){showLoading(false);clearPrologueText();addPrologueText(d.text);prologueStep1b()})}
-  else if(step==='2'){if(!val)return;prologueStep2(val)}
-  else if(step.startsWith('4')||step==='5'||step==='6'){prologueContinue(val||'继续探索')}
-  else if(step==='7'){prologueFinish()}
+  if(!val)return;
+  if(step==='1a'){
+    S.prologueStep=1;f.dataset.step='1b';f.dataset.appear=val;f.value='';
+    showLoading(true,'确认外貌中...');
+    var name=f.dataset.name||'无名';
+    fetch('/api/prologue/mirror',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,age:'18',appearance:val})})
+      .then(function(r){return r.json()}).then(function(d){showLoading(false);addPrologueText(d.text);prologueStep1b()});
+  }else if(step==='1b'){
+    f.dataset.magic=val;f.value='';f.dataset.step='2';hidePrologueInput();prologueStep2(val);
+  }else if(step==='2'){
+    prologueStep2(val);
+  }
+}
+
+function showPrologueOptions(options){
+  var container=el('#prologue-choices');
+  container.innerHTML=options.map(function(o,i){
+    var label=['A','B','C','D'][i]||String(i+1);
+    return '<button class="prologue-option-btn" onclick="prologueFromOption(\''+(o.label||o).replace(/'/g,"&#39;")+'\',\''+label+'\')"><span class="opt-label">'+label+'.</span> '+escHtml(o.label||o)+'</button>';
+  }).join('');
+  container.style.display='flex';
+}
+
+function prologueFromOption(choice,label){
+  hidePrologueInput();
+  showLoading(true,'处理中...');
+  fetch('/api/prologue/continue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:choice})})
+    .then(function(r){return r.json()}).then(function(d){
+      showLoading(false);
+      if(d.error){addPrologueText('[错误] '+d.error);return}
+      if(d.finished){prologueFinish()}else{
+        addPrologueText(d.text);
+        if(d.options&&d.options.length>0){showPrologueOptions(d.options)}
+        else{prologueContinue(d.text||'')}
+      }
+    });
+}
+
+function prologueContinue(text){
+  fetch('/api/prologue/continue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:text})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.error){addPrologueText('[错误] '+d.error);return}
+      if(d.finished){prologueFinish()}else{
+        addPrologueText(d.text);
+        if(d.options&&d.options.length>0){showPrologueOptions(d.options)}
+        else{prologueContinue(d.text||'')}
+      }
+    });
+}
+
+function prologueFinish(){
+  showLoading(true,'完成序章...');
+  fetch('/api/prologue/finish',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    showLoading(false);
+    S.inPrologue=false;
+    el('#prologue-screen').style.display='none';
+    hideMainTabs();
+    el('#npc-panel').style.display='block';
+    el('#map-strip').style.display='flex';
+    el('#story-log').style.display='block';
+    addLog('narrative','序章结束。新的故事即将开始……');
+    nextRound();
+  });
 }
 
 // ====== NPC ======
 function renderNPCs(npcs){
-  S.npcData=npcs;
-  el('#alive-count').textContent='('+npcs.length+')';
-  el('#npc-list').innerHTML=npcs.map(function(n,i){
-    var dead=!n||n.dead;
-    return '<div class="npc-card '+(n.nearby?'nearby':'')+' '+(dead?'dead':'')+'" id="npc-'+n.agent_id+'" onclick="'+(dead?'':'talkToNPC(\''+n.agent_id+'\')')+'">'
-      +'<div class="dot" style="background:'+COLORS[i]+'"></div>'
-      +'<div class="info"><div class="name">'+n.name+'</div><div class="loc">'+n.location+'</div>'
-      +'<div class="aff-row"><div class="aff-bar"><div class="aff-fill" style="width:'+n.affection+'%;background:'+COLORS[i]+'"></div></div><span class="aff-label">'+affLabel(n.affection)+'</span></div></div></div>';
+  var list=el('#npc-list');if(!list)return;
+  list.innerHTML=npcs.map(function(n){
+    var aff=n.affection||50;var affLabel=getAffectionLabel(aff);var affW=aff+'%';
+    var near=n.nearby?'<span class="nearby-marker" style="color:var(--accent2);float:right;">&#9679; 附近</span>':'';
+    var emotion=n.emotion||'';
+    var deadStyle=!n.alive?'style="opacity:.3"':'';
+    return '<div class="npc-card" '+deadStyle+'>'
+      +'<div class="npc-name">'+escHtml(n.name)+' '+near+'</div>'
+      +(emotion?'<div class="npc-emotion">'+escHtml(emotion)+'</div>':'')
+      +'<div class="npc-location" style="font-size:10px;color:var(--text2);">'+escHtml(n.location||'')+'</div>'
+      +'<div class="aff-bar"><div class="aff-fill" style="width:'+affW+'"></div></div>'
+      +'<div class="aff-label">'+affLabel+' ('+aff+')</div>';
   }).join('');
-  renderInventory();
 }
-function affLabel(v){if(v>=80)return '恋人';if(v>=60)return '知己';if(v>=50)return '友人';if(v>=40)return '相识';if(v>=30)return '陌生';if(v>=20)return '冷淡';if(v>=10)return '敌对';return '仇恨'}
-function updateCardStatus(id,s){var c=document.getElementById('npc-'+id);if(!c)return;c.classList.toggle('thinking',s==='thinking');c.classList.toggle('done',s==='done')}
-function clearNPCHighlights(){document.querySelectorAll('.npc-card').forEach(function(c){c.classList.remove('thinking','done')})}
 
-// ====== INVENTORY ======
-function renderInventory(){
-  var sd=window._state||{};
-  var inv=sd.inventory||[];
-  var el2=document.getElementById('player-inventory');
-  if(el2)el2.textContent=inv.length?'背包: '+inv.join(', '):'';
+function getAffectionLabel(v){
+  if(v>=80)return '恋人';if(v>=60)return '知己';if(v>=50)return '友人';
+  if(v>=40)return '相识';if(v>=30)return '陌生';if(v>=20)return '冷淡';
+  if(v>=10)return '敌对';return '仇恨';
+}
+
+// ====== GAME LOOP ======
+function nextRound(){
+  showLoading(true,'推演中...');clearLog();
+  var es=new EventSource('/api/round');
+  es.addEventListener('round_start',function(e){});
+  es.addEventListener('agent_done',function(e){
+    try{var d=JSON.parse(e.data);var pct=d.pct||0;el('#loading-progress').textContent='Agent '+pct+'/12';}catch(ex){}
+  });
+  es.addEventListener('arbiter_start',function(e){el('#loading-progress').textContent='仲裁中...'});
+  es.addEventListener('arbiter_done',function(e){el('#loading-progress').textContent='叙述中...'});
+  es.addEventListener('narrative_done',function(e){
+    var d=JSON.parse(e.data);var t=d.narrative||'';
+    addLog('narrative',t);
+    el('#action-bar').innerHTML='';
+    if(d.options&&d.options.length>0){
+      d.options.forEach(function(o){
+        var btn=document.createElement('button');btn.className='action-btn';
+        btn.textContent=(o.label||o.text||'行动');
+        btn.onclick=function(){doStructured(o);hideActionBar();showLoading(true,'推演中...')};
+        el('#action-bar').appendChild(btn);
+      });
+    }
+    showLoading(false);
+  });
+  es.addEventListener('round_end',function(e){
+    try{var d=JSON.parse(e.data);updateInfo(d);refreshSlots();if(S.debug)renderDebugRulings(d);}catch(ex){}
+    es.close();
+  });
+  es.addEventListener('error',function(e){
+    showLoading(false);addLog('system','推演出错，请重试。');
+    try{es.close()}catch(ex){}
+  });
+}
+
+function clearLog(){el('#story-log').innerHTML=''}
+function addLog(type,text){
+  var div=document.createElement('div');div.className='log-block log-'+type;
+  if(type==='dialogue'){div.innerHTML='<strong>'+escHtml(text.split('：')[0])+'：</strong>'+escHtml(text.split('：').slice(1).join('：'))}
+  else{div.textContent=text}
+  el('#story-log').appendChild(div);el('#story-log').scrollTop=el('#story-log').scrollHeight;
+}
+
+function doStructured(o){
+  if(!o||typeof o!=='object')return;
+  var t=o.type||'';var target=o.target;var room=o.room;
+  if(t==='dialogue'&&target){talkToNPC(target)}
+  else if(t==='explore'&&room){exploreRoom(room)}
+  else if(t==='investigate'&&o.label){doAction({action:o.label})}
+  else if(t==='custom'){el('#input-message').focus();el('#input-message').placeholder='自由行动...'}
+  else{nextRound()}
+}
+
+function hideActionBar(){el('#action-bar').innerHTML=''}
+function updateInfo(s){
+  if(s.day)el('#game-info').textContent='第'+s.day+'天 '+s.time;
+  if(s.phase)el('#difficulty-badge').textContent=s.phase;
+  if(s.floor)el('#floor-badge').textContent='L'+s.floor;
+  if(s.npcs)renderNPCs(s.npcs);
 }
 
 // ====== DIALOGUE ======
-function talkToNPC(id){
-  var npc=S.npcData.find(function(n){return n.agent_id===id});
-  if(!npc||!npc.nearby){addStory('system',(npc?npc.name:id)+' 不在这里。');return}
-  S.dialogueWith=id;
-  el('#dialogue-target').textContent='@ '+npc.name;
-  el('#dialogue-box').style.display='flex';
-  el('#input-message').value='';
+function talkToNPC(aid){
+  el('#dialogue-box').style.display='block';
+  S.dialogueWith=aid;
+  el('#dialogue-target').textContent='与 '+aid+' 对话';
+  fetch('/api/dialogue_suggestions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:aid})})
+    .then(function(r){return r.json()}).then(function(d){
+      var hints=el('#dialogue-hints');
+      if(d.suggestions&&d.suggestions.length>0){
+        hints.innerHTML=d.suggestions.map(function(s){return '<button class="hint-chip" onclick="sendSuggestion(\''+s.replace(/'/g,"&#39;")+'\')">'+escHtml(s)+'</button>'}).join('');
+      }else{hints.innerHTML=''}
+    });
   el('#input-message').focus();
-  // 先显示占位符，防止按钮位置跳跃导致误点
-  var hints=el('#dialogue-hints');
-  if(hints) hints.innerHTML='<span class="sug-placeholder">正在分析对话建议...</span>';
-  // 异步获取上下文相关的建议
-  fetch('/api/dialogue_suggestions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:id,player_name:(window._state&&window._state.player_name)||''})})
-    .then(function(r){return r.json()}).then(function(d){
-      if(!d.ok||!(d.suggestions||[]).length){if(hints)hints.innerHTML='';return;}
-      var sug=d.suggestions||[];
-      if(hints) hints.innerHTML=sug.map(function(s){return '<button class="sug-btn" onclick="sendSuggestion(\''+esc(s)+'\')">'+s+'</button>'}).join('');
-    });
 }
-function sendSuggestion(s){
-  el('#input-message').value=s;
-  sendDialogue();
-}
-function closeDialogue(){S.dialogueWith=null;el('#dialogue-box').style.display='none';el('#dialogue-hints').innerHTML='';}
 
+function sendSuggestion(msg){el('#input-message').value=msg;sendDialogue()}
 function sendDialogue(){
-  if(!S.dialogueWith)return;
-  showLoading(true,'对话中...');
-  var inp=el('#input-message');var msg=inp.value.trim()||'你好。';inp.value='';inp.disabled=true;
-  addStory('dialogue','你: '+msg,'#c9d1d9');
-  fetch('/api/dialogue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:S.dialogueWith,message:msg})})
+  var aid=S.dialogueWith;if(!aid)return;
+  var msg=el('#input-message').value.trim();if(!msg)return;
+  el('#input-message').value='';
+  fetch('/api/dialogue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:aid,message:msg})})
     .then(function(r){return r.json()}).then(function(d){
-      inp.disabled=false;
-      if(d.ok){
-        var c=COLORS[S.npcData.findIndex(function(n){return n.agent_id===S.dialogueWith})]||'#58a6ff';
-        addStory('dialogue',d.agent_name+': '+d.response,c);
-        if(d.micro_narrative) addStory('gm',d.micro_narrative);
-        refreshState()
-      }
-      else addStory('system',d.error||'对话失败');
-      showLoading(false);
-      inp.focus();
+      if(d.ok){addLog('dialogue','你：'+msg);addLog('dialogue',d.agent_name+'：'+d.response)}
+      else alert(d.error||'对话失败');
     });
 }
+function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null}
 
-// ====== ROUND ======
-function nextRound(){
-  if(S.inPrologue)return;
-  if(!S.playersTurn)return;
-  S.playersTurn=false;
-  disableActions(true);showLoading(true,'Agent 思考中...');clearNPCHighlights();
-  var src=new EventSource('/api/round');var done=false;
-  src.onmessage=function(e){
-    if(done)return;
-    try{var evt=JSON.parse(e.data)}catch(ex){return}
-    if(evt.type==='round_start'){setLoadingText('第'+evt.round+'轮...')}
-    else if(evt.type==='agent_done'){updateCardStatus(evt.agent_id,'done');setLoadingText('Agent('+evt.completed+'/'+evt.total+')')}
-    else if(evt.type==='arbiter_start'){setLoadingText('仲裁官判定中...')}
-    else if(evt.type==='arbiter_done'){
-      setLoadingText('仲裁完成');
-      if(S.debug){renderDebugRulings(evt.rulings)}
-    }
-    else if(evt.type==='narrative_start'){setLoadingText('GM 叙述中...')}
-    else if(evt.type==='narrative_done'){addStory('gm',evt.text);renderActions(evt.options)}
-    else if(evt.type==='npc_approaches'){
-      evt.npcs.forEach(function(n){
-        if(n.opener){
-          addStory('npc','「'+n.opener.replace(/^[「『""]|[」』""]$/g,'')+'」——'+n.agent_name);
-        }else{
-          addStory('system','💬 '+n.agent_name+' 走了过来。');
-        }
-      });
-      if(evt.npcs.length===1){
-        setTimeout(function(){talkToNPC(evt.npcs[0].agent_id)},500);
-      }
-    }
-    else if(evt.type==='round_end'){
-      if(evt.rule_text){addStory('system','\n【游戏规则】\n'+evt.rule_text)}
-      updateInfo(evt);if(evt.in_trial)showTrialBanner();else hideTrialBanner();src.close();showLoading(false);S.playersTurn=true;disableActions(false);refreshState()
-    }
-    else if(evt.type==='error'){src.close();showLoading(false);S.playersTurn=true;disableActions(false);addStory('system','错误: '+evt.message)}
-  };
-  src.onerror=function(){if(!done){src.close();showLoading(false);S.playersTurn=true;disableActions(false)}done=true};
-}
-
-// ====== ACTIONS ======
-function renderActions(opts){
-  el('#action-bar').innerHTML=(opts||[]).map(function(o,i){
-    if(typeof o==='string')return '<button onclick="doAction(\''+esc(o)+'\')">'+o+'</button>';
-    var label=o.label||'';var letters='ABCD';
-    return '<button class="act-btn act-'+ (o.type||'')+'" onclick="doStructured(\''+esc(JSON.stringify(o))+'\')">'+letters.charAt(i)+'. '+label+'</button>';
-  }).join('')
-    +'<span class="free-input-wrap"><input type="text" id="free-input" placeholder="自由输入..." maxlength="200" onkeydown="if(event.key===\'Enter\')submitFree()"><button onclick="submitFree()">→</button></span>'
-    +'<button onclick="nextRound()" style="border-color:#7ee787;color:#7ee787;">▶ 推进</button>';
-}
-
-function doStructured(jsonStr){
-  try{var opt=JSON.parse(jsonStr)}catch(e){return}
-  if(opt.type==='dialogue'&&opt.target){
-    // 真正的 NPC agent 对话
-    talkToNPC(opt.target);
-    return;
-  }
-  if(opt.type==='explore'&&opt.room){
-    exploreRoom(opt.room);
-    return;
-  }
-  if(opt.type==='investigate'){
-    investigateAction(opt.label);
-    return;
-  }
-  // custom 或其他 → 自由输入式调查，但先尝试匹配附近 NPC
-  doAction(opt.label||'');
-}
-function submitFree(){var inp=document.getElementById('free-input');if(!inp)return;var t=inp.value.trim();if(!t)return;inp.value='';inp.blur();doAction(t)}
-function disableActions(v){document.querySelectorAll('#action-bar button').forEach(function(b){b.disabled=v});var inp=document.getElementById('free-input');if(inp)inp.disabled=v}
-function doAction(a){
-  disableActions(true);
-  // Meta-instruction detection
-  if(a.match(/指令[：:]|\(指令[：:]/)){
-    var cmd = a.replace(/.*?指令[：:]/,'').replace(/[）)]/,'').trim();
-    if(!cmd) cmd = '检查所有角色';
-    showLoading(true,'查询中...');
-    fetch('/api/meta',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})})
-      .then(function(r){return r.json()}).then(function(d){
-        showLoading(false);
-        if(d.ok){addStory('system',d.result);refreshState()}
-        else addStory('system',d.error||'指令失败');
-        disableActions(false);
-      });
-    return;
-  }
-  // Combined options (e.g. "B……A" or "A+B")
-  if(a.includes('……')||a.includes('..')){
-    var parts = a.split(/……|\.\./);
-    doActionChain(parts,0);
-    return;
-  }
-  // Combined single letters (e.g. "AC" or "B D")
-  if(/^[A-D]\s*[A-D]$/.test(a.replace(/\s/g,''))){ // Not doing this automatically, too ambiguous
-    // fall through to normal handling
-  }
-  // 检查是否为旧格式字符串（兼容）
-  if(a.includes('交谈')&&a.includes('与')){var n=S.npcData.find(function(x){return a.includes(x.name)||a.includes(x.agent_id)});if(n)talkToNPC(n.agent_id);else addStory('system','找不到');disableActions(false);return}
-  if(a.includes('前往')){exploreRoom(a.replace('前往','').replace('探索','').trim());return}
-  // 尝试匹配附近 NPC
-  var nearby=S.npcData.filter(function(x){return x.nearby});
-  var matchedNpc=null;
-  for(var i=0;i<nearby.length;i++){
-    var n=nearby[i];
-    if(a.includes(n.name)||a.includes(n.agent_id)){matchedNpc=n;break}
-  }
-  if(matchedNpc){talkToNPC(matchedNpc.agent_id);disableActions(false);return}
-  if(nearby.length===1){talkToNPC(nearby[0].agent_id);disableActions(false);return}
-  freeNarrativeAction(a);
-}
-
-function doActionChain(parts,idx){
-  if(idx >= parts.length){ disableActions(false); refreshState(); return; }
-  var a = parts[idx].trim();
-  if(!a){ doActionChain(parts, idx+1); return; }
-  disableActions(true);
-  // Try as NPC dialogue first
-  var nearby=S.npcData.filter(function(x){return x.nearby});
-  var matchedNpc=null;
-  for(var i=0;i<nearby.length;i++){
-    if(a.includes(nearby[i].name)||a.includes(nearby[i].agent_id)){matchedNpc=nearby[i];break}
-  }
-  if(matchedNpc && S.dialogueWith !== matchedNpc.agent_id){
-    // Just open dialogue with this NPC, don't send message yet unless a is a full sentence
-    if(a.length > matchedNpc.name.length+2){
-      addStory('system','你: '+a);
-      fetch('/api/dialogue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:matchedNpc.agent_id,message:a})})
-        .then(function(r){return r.json()}).then(function(d){
-          if(d.ok){
-            var c=COLORS[S.npcData.findIndex(function(n){return n.agent_id===matchedNpc.agent_id})]||'#58a6ff';
-            addStory('dialogue',d.agent_name+': '+d.response,c);
-            if(d.micro_narrative) addStory('gm',d.micro_narrative);
-          }
-          doActionChain(parts,idx+1);
-        }).catch(function(){ doActionChain(parts,idx+1); });
-      return;
-    }
-    else { talkToNPC(matchedNpc.agent_id); doActionChain(parts,idx+1); return; }
-  }
-  freeNarrativeAction(a);
-  doActionChain(parts,idx+1);
-}
-
-function investigateAction(a){
-  addStory('system','你: '+a);
-  showLoading(true,'处理中...');
-  fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a})})
-    .then(function(r){return r.json()}).then(function(d){
-      showLoading(false);
-      if(d.ok&&d.description)addStory('gm',d.description);
-      if(d.trial_evidence)addStory('system','[证据] '+d.description);
-      if(d.inventory&&window._state){window._state.inventory=d.inventory;renderInventory()}
-      disableActions(false)
-    });
-}
-
-function freeNarrativeAction(a){
-  addStory('system','你: '+a);
-  showLoading(true,'叙述中...');
-  fetch('/api/free_narrative',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a})})
-    .then(function(r){return r.json()}).then(function(d){
-      showLoading(false);
-      if(d.ok){
-        if(d.narrative)addStory('gm',d.narrative);
-        if(d.options&&d.options.length>0)renderActions(d.options);
-      }else addStory('system',d.error||'处理失败');
-      disableActions(false)
-    });
-}
+// ====== EXPLORE / INVESTIGATE ======
 function exploreRoom(room){
-  addStory('system','前往 '+room);
-  showLoading(true,'前往中...');
-  fetch('/api/explore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room})})
+  fetch('/api/explore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:room})})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){addStory('gm',d.description);refreshState()}else addStory('system',d.error||'无法前往');
-      showLoading(false);
-      nextRound();
+      if(d.ok){addLog('narrative',d.description);renderMap(d)}
+      else alert(d.error||'移动失败');
+    });
+}
+
+function doAction(data){
+  fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.ok){addLog('narrative',d.description)}
+      else alert(d.error||'行动失败');
     });
 }
 
 // ====== TRIAL ======
-function showTrialBanner(){el('#trial-banner').style.display='flex';updateTrialPhases()}
-function hideTrialBanner(){el('#trial-banner').style.display='none'}
-function updateTrialPhases(){
-  fetch('/api/trial/state').then(function(r){return r.json()}).then(function(d){
-    var map={'investigation':'搜查','court_statement':'陈述','court_debate':'辩论','closing':'论告','voting':'投票','execution':'处刑'};
-    el('#trial-info').textContent='⚖ '+ (map[d.phase]||d.phase);
-    document.querySelectorAll('.trial-phase-tag').forEach(function(t){t.classList.toggle('active',t.dataset.phase===d.phase)});
-    el('#trial-proceed-btn').textContent=d.phase==='closing'?'进入投票':d.phase==='execution'?'结果':'推进';
-  });
+function showTrialBanner(victim,phase){
+  el('#trial-banner').style.display='block';
+  el('#trial-info').textContent='魔女审判 — 被害者：'+victim;
 }
 function trialProceed(){
   fetch('/api/trial/proceed',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
-    if(d.error){addStory('system','审判: '+d.error);return}
-    if(d.phase==='closing'&&!d.error){
-      addStory('system','发表论告: 完整阐述动机/手法/证据链。输入后再次点击推进。');
-      el('#trial-proceed-btn').textContent='提交论告并投票';
-      // Show argument input
-      showArgumentInput();
-      return;
-    }
-    if(d.text)addStory('trial',d.text);
-    if(d.phase==='execution'){el('#story-log').lastElementChild.className='story-block execution';addStory('system','审判结束。');hideTrialBanner();refreshState()}
-    updateTrialPhases();
+    if(d.ok){addLog('trial',d.text||d.phase);if(d.phase==='execution'){addLog('execution',d.text)}}
+    else alert(d.error||'推进失败');
   });
 }
-function showArgumentInput(){
-  var bar=el('#action-bar');
-  bar.innerHTML='<span style="flex:1;display:flex;gap:4px;"><input type="text" id="arg-input" placeholder="你的论告..." style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"><button onclick="submitArgument()" style="padding:6px 14px;background:var(--warn);border:none;border-radius:6px;color:#000;font-weight:600;cursor:pointer;">提交</button></span>';
-  el('#arg-input').focus();
-}
-function submitArgument(){
-  var arg=el('#arg-input');if(!arg||!arg.value.trim())return;
-  addStory('system','你的论告: '+arg.value.trim());
-  fetch('/api/trial/argue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({argument:arg.value.trim()})}).then(function(){
-    el('#trial-proceed-btn').textContent='进入投票';
-    el('#action-bar').innerHTML='<button onclick="nextRound()" style="border-color:#7ee787;color:#7ee787;">▶ 推进</button>';
-  });
-}
-
-// ====== UI ======
-function addStory(type,text,color){
-  var log=el('#story-log');
-  var d=document.createElement('div');
-  d.className='story-block '+type;
-  if(color)d.style.borderColor=color;
-  if(text.indexOf('\n\n')>=0){
-    d.innerHTML=text.split('\n\n').map(function(p){return'<p>'+p.replace(/\n/g,'<br>')+'</p>'}).join('');
-  }else if(text.length>300&&text.indexOf('\n')<0){
-    var chunks=[];var s=text;while(s.length>250){
-      var cut=s.lastIndexOf('。',250);if(cut<120)cut=s.indexOf('。',250);if(cut<0)cut=250;
-      chunks.push(s.slice(0,cut+1));s=s.slice(cut+1);
-    }
-    if(s)chunks.push(s);
-    d.innerHTML=chunks.map(function(p){return'<p>'+p+'</p>'}).join('');
-  }else{
-    d.innerHTML=text.replace(/\n/g,'<br>');
-  }
-  log.appendChild(d);
-  log.parentElement.scrollTop=log.parentElement.scrollHeight;
-}
-function updateInfo(s){
-  window._state=s;
-  el('#game-info').textContent='第'+s.day+'天 '+s.time+' · '+(s.location||'');
-  var db=el('#difficulty-badge');db.textContent={story:'剧情',normal:'正常',witch:'魔女'}[s.difficulty]||'';db.className=s.difficulty||'';
-  var fb=el('#floor-badge');fb.textContent=s.floor?s.floor+'F':'';
-  if(s.alive_count)el('#alive-count').textContent='('+s.alive_count+')';
-  renderInventory();
-}
-function refreshState(){
-  fetch('/api/state').then(function(r){return r.json()}).then(function(d){
-    if(d.npcs)renderNPCs(d.npcs);
-    updateInfo(d);
-    if(d.map_data)renderMap(d.map_data);
-    if(d.in_trial)showTrialBanner();else hideTrialBanner();
-  });
-}
-function showLoading(v,t){el('#loading-overlay').style.display=v?'flex':'none';if(t)setLoadingText(t)}
-function setLoadingText(t){el('#loading-text').textContent=t}
 
 // ====== MAP ======
-function renderMap(md){
-  var strip=el('#map-strip');
-  if(!md||!md.cars||md.cars.length<2){strip.style.display='none';return}
+function renderMap(data){
+  var strip=el('#map-strip');if(!strip)return;
   strip.style.display='flex';
-  var isTrain=S._scene==='snow_train';
-  var cars=md.cars;
-  var html='';
-  for(var i=0;i<cars.length;i++){
-    var c=cars[i];
-    if(i>0){
-      var prev=cars[i-1];
-      var tr=null;
-      for(var j=0;j<md.transitions.length;j++){
-        var t=md.transitions[j];
-        if(t.from_floor===prev.floor&&t.to_floor===c.floor){tr=t;break}
-      }
-      if(tr){
-        html+='<span class="map-arrow" onclick="exploreRoom(\''+tr.via_room+'\')">▶</span>';
-      }else if(c.locked){
-        html+='<span class="map-arrow locked">🔒</span>';
-      }else{
-        html+='<span class="map-arrow">·</span>';
-      }
-    }
-    var cls='map-car'+(c.has_player?' active':'')+(c.locked?' locked':'');
-    html+='<div class="'+cls+'">';
-    var unit=isTrain?'车':'层';
-    html+='<span class="map-car-label">'+(c.locked?'🔒 ':'')+unit+c.floor+'</span>';
-    var roomsShort=c.rooms.slice(0,3).join('·');
-    if(c.rooms.length>3)roomsShort+='等';
-    html+='<span class="map-car-sublabel">'+roomsShort+'</span>';
-    html+='<div class="map-rooms">';
-    for(var k=0;k<c.rooms.length;k++){
-      var explored=c.explored.indexOf(c.rooms[k])>=0;
-      var here=c.has_player&&md.player_room===c.rooms[k];
-      html+='<span class="map-dot'+(explored?' explored':'')+(here?' here':'')+'"></span>';
-    }
-    html+='</div></div>';
-  }
-  strip.innerHTML=html;
+  var cars=data&&data.map_data?data.map_data.cars:(data&&data.cars?data.cars:[]);
+  if(!cars||cars.length===0){strip.innerHTML='';return}
+  strip.innerHTML=cars.map(function(car){
+    var dots=car.rooms.map(function(r){
+      var cls='map-dot';if(r===data.player_room||r===data.location)cls+=' player';else if(car.explored&&car.explored.indexOf(r)>=0)cls+=' explored';
+      return '<span class="'+cls+'">'+r+'</span>';
+    }).join('');
+    var lock=car.locked?' <span style="color:var(--warn);">&#128274;</span>':'';
+    return '<div class="map-car"><div class="map-car-label">L'+car.floor+lock+'</div>'+dots+'</div>';
+  }).join('');
 }
 
-// ====== SAVE ======
+// ====== SAVE / LOAD ======
 function toggleSave(){
-  var p=el('#save-panel');
-  p.style.display=p.style.display==='none'?'block':'none';
-  if(p.style.display==='block')refreshSlots();
-}
-function newGameConfirm(){
-  if(!confirm('确认开始新游戏？当前进度将丢失（可先存档）。'))return;
-  fetch('/api/new_game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene_id:S._scene})})
-    .then(function(r){return r.json()}).then(function(d){
-      if(!d.ok)return;
-      // 重置前端状态
-      S.inPrologue=false;S.prologueStep=0;S.playersTurn=true;S.dialogueWith=null;S._selectedCard=null;
-      el('#story-log').innerHTML='';
-      el('#scene-label').textContent=d.scene_name||'';
-      el('#scene-title').textContent=d.scene_name||'';
-      el('#scene-screen').style.display='block';
-      el('#intro-screen').style.display='none';
-      el('#prologue-screen').style.display='none';
-      el('#npc-list').innerHTML='';
-      el('#action-bar').innerHTML='';
-      el('#game-info').textContent='';
-      hideTrialBanner();
-      // 重新加载场景和卡片
-      fetch('/api/scenes').then(function(r2){return r2.json()}).then(function(sd){
-        var list=el('#scene-list');
-        if(list)list.innerHTML=sd.scenes.map(function(s){return '<div class="scene-card" onclick="selectScene(\''+s.id+'\')"><div class="scene-name">'+s.name+'</div><div class="scene-desc">'+(s.desc||'')+'</div></div>'}).join('');
-      });
-      fetch('/api/cards').then(function(r3){return r3.json()}).then(function(cd){renderCards(cd.cards)});
-    });
+  el('#save-panel').style.display='block';
+  refreshSlots();
 }
 function refreshSlots(){
   fetch('/api/slots').then(function(r){return r.json()}).then(function(d){
-    var html='<div class="save-slot auto"><div class="slot-desc">自动存档</div><div>'+(d.slots&&d.slots.find(function(x){return x.slot==='auto'})?'<span class="slot-time">有存档</span>':'<span class="slot-time" style="color:var(--text2)">空</span>')+' <button onclick="saveGame(\'auto\')">保存</button>'+(d.slots&&d.slots.find(function(x){return x.slot==='auto'})?'<button onclick="loadGame(\'auto\')">读档</button>':'')+'</div></div>';
-    for(var s=1;s<=6;s++){
-      var slot=d.slots&&d.slots.find(function(x){return x.slot===s});
-      html+='<div class="save-slot"><div><div class="slot-desc">槽位 '+s+'</div>'+(slot?'<div class="slot-time">第'+slot.round_count+'轮</div>':'')+'</div><div><button onclick="saveGame('+s+')">保存</button>'+(slot?'<button onclick="loadGame('+s+')">读档</button>':'')+'</div></div>';
-    }
-    el('#save-slots').innerHTML=html;
-  });
-}
-function saveGame(s){showLoading(true,'保存中...');fetch('/api/save/'+s,{method:'POST'}).then(function(r){return r.json()}).then(function(d){showLoading(false);refreshSlots()})}
-function loadGame(s){
-  showLoading(true,'读档中...');
-  fetch('/api/load/'+s,{method:'POST'}).then(function(r){return r.json()}).then(function(d){
-    showLoading(false);
-    if(!d.ok){alert(d.error||'读档失败');refreshSlots();return}
-    el('#save-panel').style.display='none';el('#intro-screen').style.display='none';el('#story-log').innerHTML='';el('#prologue-screen').style.display='none';
-    S.inPrologue=false;
-    var log=d.narrative_log||[];
-    log.forEach(function(entry){
-      if(typeof entry==='string'){addStory('gm',entry)}
-      else{addStory(entry.type||'gm',entry.text||entry,entry.color)}
+    var list=el('#save-slots');
+    if(!list)return;
+    var html='';
+    (d.slots||[]).forEach(function(s){
+      var date=s.date||'';var scene=s.scene||'';var day=s.day||'';
+      html+='<div class="save-slot"><span><strong>'+s.slot+'</strong> '+date+'</span>'
+        +'<span style="font-size:11px;color:var(--text2);">'+scene+' Day'+day+'</span>'
+        +'<span><button class="mini-btn" onclick="saveGame(\''+s.slot+'\')">存</button> <button class="mini-btn" onclick="loadGame(\''+s.slot+'\')">读</button></span></div>';
     });
-    renderNPCs(d.npcs);updateInfo(d);S.playersTurn=true;S._selectedCard=null;hideTrialBanner();
-    nextRound();
-  }).catch(function(e){
-    showLoading(false);
-    alert('读档失败：'+e.message);
+    list.innerHTML=html||'<div style="font-size:12px;color:var(--text2);">无存档</div>';
   });
 }
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;').replace(/"/g,'&quot;')}
-
-function shutdownServer(){
-  if(!confirm('确认关闭程序？'))return;
-  fetch('/api/shutdown').catch(function(){});
-  document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text2);font-size:16px;">程序已关闭。请关闭此页面。</div>';
+function saveGame(slot){
+  fetch('/api/save/'+slot,{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    if(d.ok){refreshSlots()}else alert(d.error);
+  });
+}
+function loadGame(slot){
+  fetch('/api/load/'+slot,{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    if(d.ok){
+      hideMainTabs();el('#npc-panel').style.display='block';el('#map-strip').style.display='flex';
+      el('#story-log').style.display='block';
+      if(d.narrative_log&&d.narrative_log.length>0){
+        d.narrative_log.slice(-20).forEach(function(n){addLog(n.type||'narrative',n.text||'')});
+      }
+      renderNPCs(d.npcs||[]);
+      nextRound();
+    }else alert(d.error||'读档失败');
+  });
 }
 
 // ====== SETTINGS ======
-var _cfgTestDone=false;
-function showSettings(){_cfgTestDone=false;loadProfiles();el('#settings-panel').style.display='block'}
-function hideSettings(){el('#settings-panel').style.display='none'}
+function showSettings(){switchTab('settings')}
 
 function loadProfiles(){
   fetch('/api/profiles').then(function(r){return r.json()}).then(function(d){
-    var list=el('#profile-list');if(!list)return;
+    var list=el('#profile-list-inline');if(!list)return;
     var html='<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">已保存的配置：</div>';
     var ps=d.profiles||[];
     if(ps.length===0)html+='<div style="font-size:12px;color:var(--text2);padding:8px;">（暂无配置，请添加）</div>';
@@ -712,26 +692,25 @@ function loadProfiles(){
       if(p.gm_model) subModels.push('GM:'+p.gm_model);
       var subStr=subModels.length?' | '+subModels.join(' '):'';
       html+='<div class="profile-item'+(p.active?' active':'')+'">'
-        +'<div class="profile-info"><span class="profile-name">'+p.name+'</span> <span style="font-size:11px;color:var(--text2);">'+p.base_url+' / '+p.model+'</span><br><span style="font-size:10px;color:var(--text2);">temp:'+(p.temperature||1.0)+' top_p:'+(p.top_p||0.95)+subStr+'</span> <span style="font-size:10px;color:'+(p.has_key?'var(--accent2)':'var(--warn)')+';">'+keyS+'</span>'+act+'</div>'
+        +'<div class="profile-info"><span class="profile-name">'+escHtml(p.name)+'</span> <span style="font-size:11px;color:var(--text2);">'+escHtml(p.base_url)+' / '+escHtml(p.model)+'</span><br><span style="font-size:10px;color:var(--text2);">temp:'+(p.temperature||1.0)+' top_p:'+(p.top_p||0.95)+subStr+'</span> <span style="font-size:10px;color:'+(p.has_key?'var(--accent2)':'var(--warn)')+';">'+keyS+'</span>'+act+'</div>'
         +'<div class="profile-actions">'
-        +'<button onclick="activateProfile(\''+esc(p.name)+'\')" class="mini-btn">选择</button>'
-        +'<button onclick="editProfile(\''+esc(p.name)+'\')" class="mini-btn">编辑</button>'
-        +'<button onclick="deleteProfile(\''+esc(p.name)+'\')" class="mini-btn danger">删除</button>'
+        +'<button onclick="activateProfile(\''+escJs(p.name)+'\')" class="mini-btn">选择</button>'
+        +'<button onclick="editProfile(\''+escJs(p.name)+'\')" class="mini-btn">编辑</button>'
+        +'<button onclick="deleteProfile(\''+escJs(p.name)+'\')" class="mini-btn danger">删除</button>'
         +'</div></div>';
     });
     list.innerHTML=html;
-    // 如果已有配置且未测试过，自动测试
-    if(ps.length>0&&!_cfgTestDone&&d.active)testAPIConnectionFromSettings();
+    if(ps.length>0&&!window._cfgTestDone&&d.active)testAPIConnectionFromSettings();
   });
 }
 
+function escJs(s){return (s||'').replace(/'/g,"\\'")}
 function activateProfile(name){
   fetch('/api/profiles/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){_cfgTestDone=false;loadProfiles();testAPIConnectionFromSettings()}
+      if(d.ok){window._cfgTestDone=false;loadProfiles();testAPIConnectionFromSettings()}
     });
 }
-
 function editProfile(name){
   fetch('/api/profiles').then(function(r){return r.json()}).then(function(d){
     var p=(d.profiles||[]).find(function(x){return x.name===name});
@@ -741,13 +720,11 @@ function editProfile(name){
       el('#cfg-topp').value=p.top_p||0.95;el('#cfg-topp-val').textContent=p.top_p||0.95;}
   });
 }
-
 function deleteProfile(name){
   if(!confirm('确认删除 "'+name+'"？'))return;
   fetch('/api/profiles/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})})
     .then(function(r){return r.json()}).then(function(d){loadProfiles()});
 }
-
 function saveSettings(){
   var name=el('#cfg-name').value.trim(),url=el('#cfg-url').value.trim(),key=el('#cfg-key').value.trim(),model=el('#cfg-model').value.trim();
   if(!name){alert('请输入配置名');return}if(!url){alert('请输入接口地址');return}
@@ -765,7 +742,6 @@ function saveSettings(){
         loadProfiles();
         el('#cfg-name').value='';el('#cfg-url').value='';el('#cfg-key').value='';el('#cfg-model').value='';
         el('#cfg-agent-model').value='';el('#cfg-arbiter-model').value='';el('#cfg-gm-model').value='';
-        // 保存后自动激活为新配置
         activateProfileFromSave(name);
       }
     });
@@ -773,35 +749,22 @@ function saveSettings(){
 function activateProfileFromSave(name){
   fetch('/api/profiles/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){loadProfiles();_cfgTestDone=false;testAPIConnectionFromSettings()}
+      if(d.ok){loadProfiles();window._cfgTestDone=false;testAPIConnectionFromSettings()}
     });
 }
-
 function testAPIConnectionFromSettings(){
-  var status=el('#cfg-status');if(!status)return;
-  status.style.display='block';status.textContent='测试连接中...';status.className='conn-checking';
+  el('#cfg-status').style.display='block';el('#cfg-status').textContent='测试中...';el('#cfg-status').className='conn-checking';
+  window._cfgTestDone=true;
   fetch('/api/test_connection').then(function(r){return r.json()}).then(function(d){
-    if(d.ok){status.textContent='\u2713 连接正常 ('+d.model+' \u00b7 '+d.latency_ms+'ms)';status.className='conn-ok';_cfgTestDone=true}
-    else{status.textContent='\u2717 '+d.error;status.className='conn-fail';_cfgTestDone=false}
-  });
+    if(d.ok){el('#cfg-status').textContent='✓ 已连接 — '+d.model+' ('+d.latency_ms+'ms)';el('#cfg-status').className='conn-ok'}
+    else{el('#cfg-status').textContent='✗ 连接失败 — '+d.error;el('#cfg-status').className='conn-fail'}
+  }).catch(function(){el('#cfg-status').textContent='✗ 连接失败';el('#cfg-status').className='conn-fail'});
 }
 
-// ====== DEBUG ======
-function renderDebugRulings(rulings){
-  var panel = el('#debug-panel'); if(!panel) return;
-  panel.style.display = 'block';
-  var body = el('#debug-rulings'); if(!body) return;
-  var now = new Date().toLocaleTimeString();
-  var html = '<div class="debug-round-header">--- '+now+' ---</div>';
-  rulings.forEach(function(r){
-    var icon = r.approved && r.success ? '✓' : '✗';
-    var color = r.approved && r.success ? 'var(--accent2)' : (r.approved ? 'var(--warn)' : 'var(--danger)');
-    html += '<div class="debug-line"><span style="color:'+color+'">'+icon+'</span> '+r.agent_name+': '+r.description+(r.downgraded?' →降级为'+r.downgraded:'')+'</div>';
-  });
-  body.innerHTML = body.innerHTML + html;
-  body.parentElement.scrollTop = body.parentElement.scrollHeight;
-}
-function toggleDebugPanel(){
-  var body = el('#debug-panel .debug-body');
-  if(body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
-}
+// ====== UTILS ======
+function showLoading(on,text){var o=el('#loading-overlay');if(on){o.style.display='flex';el('#loading-text').textContent=text||'思考中...';el('#loading-progress').textContent=''}else{o.style.display='none'}}
+function hideSettings(){switchTab('cards')}
+function newGameConfirm(){if(confirm('开始新游戏？当前进度将丢失。')){location.reload()}}
+function shutdownServer(){if(confirm('确认关闭服务端？')){fetch('/api/shutdown')}}
+function toggleDebugPanel(){var p=el('#debug-panel');var b=p.querySelector('.debug-body');b.style.display=b.style.display==='none'?'block':'none'}
+function renderDebugRulings(d){if(!d||!d.rulings)return;el('#debug-rulings').innerHTML=d.rulings.map(function(r){return '<div>'+r[0]+' '+r[1]+'</div>'}).join('')}
