@@ -1,5 +1,5 @@
 """Game blueprint — 6 endpoints: round (SSE), dialogue, suggestions, explore, investigate, move_player."""
-import json, queue, threading
+import json, queue, threading, traceback
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 import session as _sess
 from state import roll_risk
@@ -12,7 +12,7 @@ def api_round():
         q = queue.Queue()
         def worker():
             try: _sess.session.run_round(q)
-            except Exception as e: q.put({"type":"error","message":str(e)})
+            except Exception as e: q.put({"type":"error","message":f"{e}\n{traceback.format_exc()}"})
             finally: q.put({"type":"_done_"})
         t = threading.Thread(target=worker); t.start()
         while True:

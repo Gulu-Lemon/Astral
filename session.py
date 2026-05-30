@@ -3,7 +3,7 @@ Astral -- GameSession core v0.5
 GameSession class + module-level singleton
 """
 from __future__ import annotations
-import json, os, sys, re, queue, threading, time, random
+import json, os, sys, re, queue, threading, time, random, traceback
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -203,17 +203,21 @@ class GameSession:
         )
 
     def _is_leave_attempt(self, choice: str) -> bool:
-        result = self.llm.chat(
-            messages=[{"role":"user","content":
-                f"序章阶段，所有人都在【{self.player_location}】里，尚未去过任何其他地方。\n"
-                f"玩家刚刚做出了一个选择：\n"
-                f"「{choice}」\n\n"
-                f"判断：这个选择是否暗示玩家想要离开当前区域、去另一个房间或地点？\n"
-                f"只回答 YES 或 NO。"}],
-            system="你是一个精确的意图分类器。",
-            temperature=0.1, max_tokens=8,
-        )
-        return "YES" in result.upper()
+        try:
+            result = self.llm.chat(
+                messages=[{"role":"user","content":
+                    f"序章阶段，所有人都在【{self.player_location}】里，尚未去过任何其他地方。\n"
+                    f"玩家刚刚做出了一个选择：\n"
+                    f"「{choice}」\n\n"
+                    f"判断：这个选择是否暗示玩家想要离开当前区域、去另一个房间或地点？\n"
+                    f"只回答 YES 或 NO。"}],
+                system="你是一个精确的意图分类器。",
+                temperature=0.1, max_tokens=8,
+            )
+            return "YES" in result.upper()
+        except Exception as e:
+            self._log("system", f"离开意图判定LLM失败，默认不视为离开: {str(e)[:100]}")
+            return False
 
     def _roster(self) -> str:
         chars = self.scenario.get("characters", {}) if self.scenario else {}
@@ -336,7 +340,7 @@ A.选项内容
 B.选项内容
 C.选项内容
 D.选项内容"""
-        text = self._safe_llm(self._prologue_context+[{"role":"user","content":initial_prompt}], self._pgm(), 1.0, 1024)
+        text = self._safe_llm(self._prologue_context+[{"role":"user","content":initial_prompt}], self._pgm(), 1.0, 2048)
         options = self._parse_prologue_options(text)
         narrative = self._strip_prologue_options(text)
         if not options: options = ["与附近的人交谈","仔细观察周围环境","静静等待事态发展","查看周围人的反应"]
@@ -365,7 +369,7 @@ D.选项内容"""
 末尾只输出1个选项：
 【选项】
 A. 进入游戏"""
-            text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 0.9, 1024)
+            text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 0.9, 2048)
             self._prologue_truncate_context()
             self._prologue_context.append({"role":"user","content":prompt})
             self._prologue_context.append({"role":"assistant","content":text})
@@ -419,7 +423,7 @@ NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
 重要约束：严格按照【场景基调】描写环境。禁止编造场景中不存在的区域、建筑、设施或自然景观。禁止描述任何初始区域以外的地方。禁止生成涉及离开当前区域的选项。200-300字。
 
 末尾输出4个选项：【选项】A. ... B. ... C. ... D. ..."""
-            text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 1024)
+            text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 2048)
             self._prologue_truncate_context()
             self._prologue_context.append({"role":"user","content":prompt})
             self._prologue_context.append({"role":"assistant","content":text})
@@ -492,7 +496,7 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
 格式：【选项】A. ... B. ... C. ... D. ...
 300-400字。"""
             self._prologue_phase = "chosen"
-        text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 1024)
+        text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 2048)
         self._prologue_truncate_context()
         self._prologue_context.append({"role":"user","content":prompt})
         self._prologue_context.append({"role":"assistant","content":text})
@@ -591,8 +595,15 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
         opts = []
         marker = re.search(r'【选项】', text)
         section = text[marker.start():] if marker else text
+        # 尝试 A./B./C./D. 格式
         for m in re.finditer(r'([A-D])\.\s*(.+?)(?=\n\s*[A-D]\.\s*|\Z)', section, re.DOTALL):
             opt_text = m.group(2).strip()
+            if len(opt_text) > 1: opts.append(opt_text)
+        if len(opts) >= 2:
+            return opts
+        # 回退：如果没有 A.B.C.D. 格式，尝试从整个文本中搜索
+        for m in re.finditer(r'^[A-D][\.\s、]\s*(.+)$', text, re.MULTILINE):
+            opt_text = m.group(1).strip()
             if len(opt_text) > 1: opts.append(opt_text)
         return opts if len(opts) >= 2 else []
 
@@ -894,17 +905,20 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
         intents: dict[str, list] = {}
         completed = 0
         total = len(self.agents)
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            future_to_aid = {executor.submit(agent.decide, self.world): aid for aid, agent in self.agents.items() if self.agent_states.get(aid, DEAD_NPC).alive}
-            for future in as_completed(future_to_aid):
-                aid = future_to_aid[future]
-                intent_list = future.result()
-                intents[aid] = intent_list
-                completed += 1
-                cp = self.agents[aid].profile
-                main = intent_list[0] if intent_list else Intent(agent_id=aid, intent_type=IntentType.REST, reasoning="")
-                if self.logger: self.logger.log_decision(aid, cp.name, main.intent_type.value, main.target_id or "", main.reasoning, (self.agent_states[aid].emotional_state if aid in self.agent_states else ""))
-                progress_queue.put({"type":"agent_done","agent_id":aid,"name":cp.name,"intent":main.intent_type.value,"target":main.target_id or "","completed":completed,"total":total})
+        try:
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                future_to_aid = {executor.submit(agent.decide, self.world): aid for aid, agent in self.agents.items() if self.agent_states.get(aid, DEAD_NPC).alive}
+                for future in as_completed(future_to_aid):
+                    aid = future_to_aid[future]
+                    intent_list = future.result()
+                    intents[aid] = intent_list
+                    completed += 1
+                    cp = self.agents[aid].profile
+                    main = intent_list[0] if intent_list else Intent(agent_id=aid, intent_type=IntentType.REST, reasoning="")
+                    if self.logger: self.logger.log_decision(aid, cp.name, main.intent_type.value, main.target_id or "", main.reasoning, (self.agent_states[aid].emotional_state if aid in self.agent_states else ""))
+                    progress_queue.put({"type":"agent_done","agent_id":aid,"name":cp.name,"intent":main.intent_type.value,"target":main.target_id or "","completed":completed,"total":total})
+        except Exception as e:
+            raise RuntimeError(f"Agent决策失败: {e}\n{traceback.format_exc()}") from e
 
         # 2. 仲裁
         first_delay_active = self.world.first_murder_delayed and self.world.rounds_since_last_murder < 6
@@ -914,7 +928,10 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
                     if intent.intent_type == IntentType.ATTACK: intent.intent_type = IntentType.CONFRONT
 
         progress_queue.put({"type":"arbiter_start"})
-        rulings = self.arbiter.process_round(intents, self.agent_states, self.world)
+        try:
+            rulings = self.arbiter.process_round(intents, self.agent_states, self.world)
+        except Exception as e:
+            raise RuntimeError(f"Arbiter仲裁失败: {e}\n{traceback.format_exc()}") from e
 
         self.world.rounds_since_last_murder += 1
         murder_events = []
@@ -1006,8 +1023,11 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
         self.gm._social_facts.append(self._atmosphere())
         bcast = getattr(self, 'xbrdcst', None)
         if bcast: self.gm._social_facts.append(bcast); self.xbrdcst = None
-        materials = self.arbiter._build_narrative_materials(rulings)
-        narrative = self.gm.synthesize_round(rulings, self.world, self.agent_states, self.player_location, materials=materials)
+        try:
+            materials = self.arbiter._build_narrative_materials(rulings)
+            narrative = self.gm.synthesize_round(rulings, self.world, self.agent_states, self.player_location, materials=materials)
+        except Exception as e:
+            raise RuntimeError(f"GM叙事生成失败: {e}\n{traceback.format_exc()}") from e
         self.last_narrative = narrative.text
         self.last_options = narrative.options
         self.world.last_narrative_summary = narrative.text[:800] if narrative.text else ""

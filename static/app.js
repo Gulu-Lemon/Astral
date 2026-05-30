@@ -467,6 +467,7 @@ function prologueFromOption(choice,label){
   fetch('/api/prologue/continue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:choice})})
     .then(function(r){return r.json()}).then(function(d){
       showLoading(false);
+      if(d.rule){addRuleText(d.rule)}
       if(d.error){addPrologueText('[错误] '+d.error);return}
       if(d.finished){prologueFinish()}else{
         addPrologueText(d.text);
@@ -479,6 +480,7 @@ function prologueFromOption(choice,label){
 function prologueContinue(text){
   fetch('/api/prologue/continue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:text})})
     .then(function(r){return r.json()}).then(function(d){
+      if(d.rule){addRuleText(d.rule)}
       if(d.error){addPrologueText('[错误] '+d.error);return}
       if(d.finished){prologueFinish()}else{
         addPrologueText(d.text);
