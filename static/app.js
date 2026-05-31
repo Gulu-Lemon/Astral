@@ -536,7 +536,7 @@ function renderNPCs(npcs){
     var near=n.nearby?'<span class="nearby-marker">&#9679; 附近</span>':'';
     var emotion=n.emotion||'';
     var deadStyle=!n.alive?'style="opacity:.3"':'';
-    return '<div class="npc-card" '+deadStyle+'>'
+    return '<div class="npc-card" onclick="talkToNPC(\''+escHtml(n.agent_id)+'\')" '+deadStyle+'>'
       +'<div class="npc-name">'+escHtml(n.name)+' '+near+'</div>'
       +(emotion?'<div class="npc-emotion">'+escHtml(emotion)+'</div>':'')
       +'<div class="npc-location">'+escHtml(n.location||'')+'</div>'
@@ -625,7 +625,7 @@ function doStructured(o){
 function hideActionBar(){el('#action-bar').innerHTML=''}
 function updateInfo(s){
   if(s.day)el('#game-info').textContent='第'+s.day+'天 '+s.time+(s.location?' · '+s.location:'');
-  if(s.phase)el('#difficulty-badge').textContent=s.phase;
+  if(s.phase)el('#difficulty-badge').textContent={blackout:'熄灯时刻',undercurrent:'暗流涌动',hunting:'猎杀时刻'}[s.phase]||s.phase;
   if(s.floor)el('#floor-badge').textContent='L'+s.floor;
   if(s.npcs)renderNPCs(s.npcs);
 }

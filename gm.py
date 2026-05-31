@@ -465,8 +465,12 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
                 temperature=0.7, max_tokens=512,
             )
             raw_options = result.get("options", []) or []
+            if not raw_options:
+                print(f"[generate_options] empty options from LLM, result keys: {list(result.keys())[:5]}")
             options = GMNarrator._parse_structured_options(raw_options)
-        except Exception:
+        except Exception as e:
+            import traceback
+            print(f"[generate_options] FAILED: {e}\n{traceback.format_exc()}")
             options = [{"label": "继续观察周围", "type": "investigate", "target": None, "room": None},
                        {"label": "与附近的人交谈", "type": "custom", "target": None, "room": None},
                        {"label": "探索这个区域", "type": "custom", "target": None, "room": None},
