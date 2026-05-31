@@ -222,7 +222,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
                        {"label": "（自定义行动）", "type": "custom", "target": None, "room": None}]
         return {"narrative": narrative, "options": options}
 
-    def stream_narrative(self, rulings, world, agent_states, player_location, materials=""):
+    def stream_narrative(self, rulings, world, agent_states, player_location, materials="", player_action=""):
         """流式生成纯叙述文本（不含选项），逐 chunk yield"""
         visible_rulings = [r for r in rulings if self._is_player_visible(r, world, player_location)]
         ctx = self._build_context(world, agent_states, player_location, visible_rulings)
@@ -323,6 +323,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
 【玩家已认识】{known_str}
 【尚未认识（用外貌特征称呼）】{unknown_str}
 【可互动物品】{', '.join(feature_names)}
+【玩家行动】{player_action if player_action else '观察周围'}
 
 【禁止】编造新角色/新名字。不在"附近角色"列表中的 NPC 不得出现在叙述中。
 
@@ -352,11 +353,11 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
             for chunk in self._llm.chat_stream(
                 messages=[{"role": "user", "content": prompt}],
                 system=gm_prompt,
-                temperature=1.0, max_tokens=4096,
+                temperature=0.8, max_tokens=4096,
             ):
                 yield chunk
-        except Exception:
-            yield "\n"
+        except Exception as e:
+            raise RuntimeError(f"流式叙事生成失败: {e}") from e
 
     def generate_options(self, narrative_text, rulings, world, agent_states, player_location):
         """基于已生成的叙述文本，生成结构化行动选项"""
@@ -432,7 +433,8 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
 =====
 
 以下是本轮叙事内容：
-{narrative_text[-3000:]}
+=====
+{narrative_text}
 =====
 
 基于上述叙事，生成 4 个行动选项。要求：

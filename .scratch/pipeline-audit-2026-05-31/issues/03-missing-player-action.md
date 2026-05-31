@@ -1,6 +1,6 @@
 # Issue 03 — `stream_narrative()` 缺少 `player_action` 上下文
 
-Status: needs-triage
+Status: resolved (v2.6)
 
 ## 现象
 
@@ -9,9 +9,11 @@ GM 生成的叙事不知道玩家本轮做了什么，缺乏聚焦点。
 ## 根因
 
 `gm.py:225` 的 `stream_narrative()` 签名不包含 `player_action` 参数。原 `_generate_narrative_and_options()` 在 prompt 中包含：
+
 ```
 【玩家行动】{player_action if player_action else '观察周围'}
 ```
+
 （行 169）
 
 拆分后，`stream_narrative()` prompt 中缺失此字段。GM 只能看到 NPC 的动作素材，不知道叙事应该围绕什么展开。

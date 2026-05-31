@@ -1,6 +1,6 @@
 # Issue 02 — `stream_narrative()` temperature=1.0 过高
 
-Status: needs-triage
+Status: resolved (v2.6)
 
 ## 现象
 
@@ -15,9 +15,12 @@ Status: needs-triage
 ## 修复
 
 将 `stream_narrative()` 的 temperature 从 1.0 降为 0.7 或 0.8：
+
 ```python
 temperature=0.8, max_tokens=4096,
 ```
+
+【用户疑问：请告诉我stream_narrative具体实现了什么，给出的prompt是怎样的】
 
 ## 影响文件
 

@@ -1,10 +1,11 @@
 # Issue 06 — Prompt 臃肿，输入可能超 10K tokens
 
-Status: needs-triage
+Status: wont-fix
 
 ## 现象
 
 `stream_narrative()` 的 prompt (`gm.py:307-346`) 包含：
+
 - 12 个 NPC 的全量 sketch（每人 5 字段：personality/magic/play_core/habits/appearance）
 - 全量关系矩阵（所有好感>65 或 <25 的对）
 - 8 个最近事件的 `full_description`（含对话、描写、推理）

@@ -1034,7 +1034,7 @@ D. ...
         try:
             materials = self.arbiter._build_narrative_materials(rulings)
             full_text = ""
-            for chunk in self.gm.stream_narrative(rulings, self.world, self.agent_states, self.player_location, materials=materials):
+            for chunk in self.gm.stream_narrative(rulings, self.world, self.agent_states, self.player_location, materials=materials, player_action=""):
                 full_text += chunk
                 progress_queue.put({"type":"narrative_chunk","text":chunk})
             options = self.gm.generate_options(full_text, rulings, self.world, self.agent_states, self.player_location)
@@ -1042,7 +1042,7 @@ D. ...
             raise RuntimeError(f"GM叙事生成失败: {e}\n{traceback.format_exc()}") from e
         self.last_narrative = full_text
         self.last_options = options
-        self.world.last_narrative_summary = full_text[:800] if full_text else ""
+        self.world.last_narrative_summary = full_text if full_text else ""
         for f in social_facts: self._log("system", f"💬 {f}")
         self._log("gm", full_text)
 

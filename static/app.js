@@ -557,7 +557,7 @@ function nextRound(){
   var es=new EventSource('/api/round');
   es.addEventListener('round_start',function(e){});
   es.addEventListener('agent_done',function(e){
-    try{var d=JSON.parse(e.data);var pct=d.pct||0;el('#loading-progress').textContent='Agent '+pct+'/12';}catch(ex){}
+    try{var d=JSON.parse(e.data);el('#loading-progress').textContent='Agent '+d.completed+'/'+d.total;}catch(ex){}
   });
   es.addEventListener('arbiter_start',function(e){el('#loading-progress').textContent='仲裁中...'});
   es.addEventListener('arbiter_done',function(e){el('#loading-progress').textContent='叙述中...'});

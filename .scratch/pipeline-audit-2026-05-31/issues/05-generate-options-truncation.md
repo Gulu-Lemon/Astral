@@ -1,6 +1,6 @@
 # Issue 05 — `generate_options` 截断叙事为末尾 3000 字符
 
-Status: needs-triage
+Status: resolved (v2.6) — 1M上下文下直接传全文
 
 ## 现象
 
@@ -9,6 +9,7 @@ Status: needs-triage
 ## 根因
 
 `gm.py:435`：
+
 ```python
 {narrative_text[-3000:]}
 ```
@@ -17,7 +18,7 @@ Status: needs-triage
 
 ## 修复
 
-将截断长度提升到 5000 字符，或使用 `narrative_text[:2000] + "\n...\n" + narrative_text[-3000:]` 同时保留开头和结尾。也可以将 narrative_text 不做截断，靠 `max_tokens=512` 限制输出而非限制输入。
+将截断长度提升到 5000 字符，或使用 `narrative_text[:2000] + "\n...\n" + narrative_text[-3000:]` 同时保留开头和结尾。也可以将 narrative_text 不做截断，靠 `max_tokens=512` 限制输出而非限制输入。【用户疑问：不能直接注入本轮的gm文本吗？】
 
 ## 影响文件
 
