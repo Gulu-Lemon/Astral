@@ -1031,18 +1031,19 @@ D. ...
         self.gm._social_facts.append(self._atmosphere())
         bcast = getattr(self, 'xbrdcst', None)
         if bcast: self.gm._social_facts.append(bcast); self.xbrdcst = None
+        full_text = ""
         try:
             materials = self.arbiter._build_narrative_materials(rulings)
-            full_text = ""
             for chunk in self.gm.stream_narrative(rulings, self.world, self.agent_states, self.player_location, materials=materials, player_action=""):
                 full_text += chunk
                 progress_queue.put({"type":"narrative_chunk","text":chunk})
-            options = [{"label": "继续观察周围", "type": "investigate", "target": None, "room": None},
-                       {"label": "与附近的人交谈", "type": "custom", "target": None, "room": None},
-                       {"label": "探索这个区域", "type": "custom", "target": None, "room": None},
-                       {"label": "（自定义行动）", "type": "custom", "target": None, "room": None}]
         except Exception as e:
-            raise RuntimeError(f"GM叙事生成失败: {e}\n{traceback.format_exc()}") from e
+            progress_queue.put({"type":"narrative_chunk","text":"（推演受阻，请稍后重试。）"})
+            self._log("system", f"GM叙事生成失败: {e}")
+        options = [{"label": "继续观察周围", "type": "investigate", "target": None, "room": None},
+                   {"label": "与附近的人交谈", "type": "custom", "target": None, "room": None},
+                   {"label": "探索这个区域", "type": "custom", "target": None, "room": None},
+                   {"label": "（自定义行动）", "type": "custom", "target": None, "room": None}]
         self.last_narrative = full_text
         self.last_options = options
         self.world.last_narrative_summary = full_text if full_text else ""
