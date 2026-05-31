@@ -513,13 +513,13 @@ function renderNPCs(npcs){
   var list=el('#npc-list');if(!list)return;
   list.innerHTML=npcs.map(function(n){
     var aff=n.affection||50;var affLabel=getAffectionLabel(aff);var affW=aff+'%';
-    var near=n.nearby?'<span class="nearby-marker" style="color:var(--accent2);float:right;">&#9679; 附近</span>':'';
+    var near=n.nearby?'<span class="nearby-marker">&#9679; 附近</span>':'';
     var emotion=n.emotion||'';
     var deadStyle=!n.alive?'style="opacity:.3"':'';
     return '<div class="npc-card" '+deadStyle+'>'
       +'<div class="npc-name">'+escHtml(n.name)+' '+near+'</div>'
       +(emotion?'<div class="npc-emotion">'+escHtml(emotion)+'</div>':'')
-      +'<div class="npc-location" style="font-size:10px;color:var(--text2);">'+escHtml(n.location||'')+'</div>'
+      +'<div class="npc-location">'+escHtml(n.location||'')+'</div>'
       +'<div class="aff-bar"><div class="aff-fill" style="width:'+affW+'"></div></div>'
       +'<div class="aff-label">'+affLabel+' ('+aff+')</div>';
   }).join('');
