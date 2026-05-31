@@ -17,9 +17,10 @@ def api_round():
         t = threading.Thread(target=worker); t.start()
         while True:
             try: evt = q.get(timeout=120)
-            except queue.Empty: yield f"data: {json.dumps({'type':'error','message':'超时'},ensure_ascii=False)}\n\n"; break
+            except queue.Empty: yield f"event: error\ndata: {json.dumps({'type':'error','message':'超时'},ensure_ascii=False)}\n\n"; break
             if evt.get("type") == "_done_": break
-            yield f"data: {json.dumps(evt,ensure_ascii=False)}\n\n"
+            evt_type = evt.get("type", "message")
+            yield f"event: {evt_type}\ndata: {json.dumps(evt,ensure_ascii=False)}\n\n"
             if evt.get("type") == "error": break
         t.join(timeout=5)
     return Response(stream_with_context(generate()), mimetype="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})

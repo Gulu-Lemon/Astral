@@ -556,6 +556,12 @@ function nextRound(){
     try{var d=JSON.parse(e.data);updateInfo(d);refreshSlots();if(S.debug)renderDebugRulings(d);}catch(ex){}
     es.close();
   });
+  es.addEventListener('npc_approaches',function(e){
+    try{var d=JSON.parse(e.data);if(d.npcs)renderApproaches(d.npcs)}catch(ex){}
+  });
+  es.onmessage=function(e){
+    try{var d=JSON.parse(e.data);if(d.type==='error'){showLoading(false);addLog('system','推演出错：'+(d.message||''));try{es.close()}catch(ex){}}}catch(ex){}
+  };
   es.addEventListener('error',function(e){
     showLoading(false);
     try{var d=JSON.parse(e.data);if(d.message){addLog('system','推演出错：'+d.message)}else{addLog('system','推演出错，请重试。')}}catch(ex){addLog('system','推演出错，请重试。')}

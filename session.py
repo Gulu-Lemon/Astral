@@ -504,7 +504,7 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
         if not options: options = ["继续观察","与附近的人交谈","仔细思考","等待事态发展"]
         self._player_action_log.append(f"玩家选择了：{player_choice}")
         if self.world.prologue_step == 6:
-            return {"text": narrative, "options": options, "step": self.world.prologue_step, "rule": rule}
+            return {"text": narrative, "options": options, "step": self.world.prologue_step}
         return {"text": narrative, "options": options, "step": self.world.prologue_step}
 
     def _generate_explore_scene(self):
@@ -594,18 +594,22 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
         opts = []
         marker = re.search(r'【选项】', text)
         section = text[marker.start():] if marker else text
-        # 尝试 A./B./C./D. 格式
-        for m in re.finditer(r'([A-D])\.\s*(.+?)(?=\n\s*[A-D]\.\s*|\Z)', section, re.DOTALL):
+        # 主路径：兼容 . : ： ) 、 空格 等多种 LLM 分隔符
+        for m in re.finditer(r'([A-D])[\.\s、：:)]\s*(.+?)(?=\n\s*[A-D][\.\s、：:)]\s*|\Z)', section, re.DOTALL):
             opt_text = m.group(2).strip()
             if len(opt_text) > 1: opts.append(opt_text)
         if len(opts) >= 2:
             return opts
-        # 回退：仅搜索文本末尾 500 字符，避免匹配叙述中的 A/B/C/D 句首
+        # 回退：文本末尾 500 字符按行匹配
         tail = text[-500:]
         for m in re.finditer(r'^[A-D][\.\s、：:)]\s*(.+)$', tail, re.MULTILINE):
             opt_text = m.group(1).strip()
             if len(opt_text) > 1: opts.append(opt_text)
-        return opts if len(opts) >= 2 else []
+        if len(opts) >= 2:
+            return opts
+        # 全部失败：记录日志供诊断
+        self._log("system", f"选项解析失败，LLM原文尾500字:\n{text[-500:]}")
+        return []
 
     def _strip_prologue_options(self, text: str) -> str:
         marker = re.search(r'【选项】', text)
