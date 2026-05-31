@@ -17,7 +17,8 @@ document.addEventListener('DOMContentLoaded',function(){
   bind('#btn-send','click',sendDialogue);
   bind('#input-message','keydown',function(e){if(e.key==='Enter')sendDialogue()});
   bind('#btn-close-dialogue','click',closeDialogue);
-  bind('#btn-save','click',toggleSave);
+  bind('#btn-save','click',showSaves);
+  bind('#btn-save-manual','click',doSaveManual);
   bind('#btn-settings','click',function(){switchTab('settings')});
   bind('#btn-cfg-save','click',saveSettings);
   bind('#btn-cfg-test','click',testAPIConnectionFromSettings);
@@ -662,40 +663,69 @@ function renderMap(data){
 }
 
 // ====== SAVE / LOAD ======
-function toggleSave(){
+function showSaves(){
   el('#save-panel').style.display='block';
-  refreshSlots();
+  renderSaveList();
 }
-function refreshSlots(){
+function renderSaveList(){
   fetch('/api/slots').then(function(r){return r.json()}).then(function(d){
     var list=el('#save-slots');
     if(!list)return;
+    var slots=d.slots||[];
+    if(slots.length===0){
+      list.innerHTML='<div style="font-size:12px;color:var(--text2);padding:8px;">（暂无存档）</div>';
+      return;
+    }
     var html='';
-    (d.slots||[]).forEach(function(s){
-      var date=s.date||'';var scene=s.scene||'';var day=s.day||'';
-      html+='<div class="save-slot"><span><strong>'+s.slot+'</strong> '+date+'</span>'
-        +'<span style="font-size:11px;color:var(--text2);">'+scene+' Day'+day+'</span>'
-        +'<span><button class="mini-btn" onclick="saveGame(\''+s.slot+'\')">存</button> <button class="mini-btn" onclick="loadGame(\''+s.slot+'\')">读</button></span></div>';
+    slots.forEach(function(s){
+      var icon=s.auto?'&#128194;':'&#128196;';
+      var label=s.auto?'<span style="color:var(--accent2);font-size:10px;">自动</span>':'<span style="color:var(--text2);font-size:10px;">手动</span>';
+      var ts=s.timestamp?s.timestamp.substring(0,16).replace('T',' '):'';
+      var meta=[];
+      if(s.description)meta.push(s.description);
+      if(s.round_count)meta.push(s.round_count+'轮');
+      meta.push(s.alive_count+'/'+s.total_npc+' NPC存活');
+      html+='<div class="save-item">'
+        +'<div class="save-item-info">'
+        +'<div class="save-item-name">'+icon+' '+escHtml(s.filename)+' '+label+'</div>'
+        +'<div class="save-item-meta">'+ts+' · '+meta.join(' · ')+'</div>'
+        +'</div>'
+        +'<div class="save-item-actions">'
+        +'<button class="mini-btn" onclick="doLoadSave(\''+escJs(s.filename)+'\')">&#9654; 读取</button>'
+        +(s.auto?'':'<button class="mini-btn danger" onclick="doDeleteSave(\''+escJs(s.filename)+'\')">&#10005;</button>')
+        +'</div></div>';
     });
-    list.innerHTML=html||'<div style="font-size:12px;color:var(--text2);">无存档</div>';
+    list.innerHTML=html;
   });
 }
-function saveGame(slot){
-  fetch('/api/save/'+slot,{method:'POST'}).then(function(r){return r.json()}).then(function(d){
-    if(d.ok){refreshSlots()}else alert(d.error);
+function doSaveManual(){
+  fetch('/api/save',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    if(d.ok){renderSaveList()}else alert(d.error||'保存失败');
   });
 }
-function loadGame(slot){
-  fetch('/api/load/'+slot,{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+function doLoadSave(filename){
+  showLoading(true,'读取存档...');
+  fetch('/api/load/'+encodeURIComponent(filename),{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    showLoading(false);
     if(d.ok){
-      hideMainTabs();el('#npc-panel').style.display='block';el('#map-strip').style.display='flex';
+      el('#save-panel').style.display='none';
+      hideMainTabs();
+      el('#npc-panel').style.display='block';
+      el('#map-strip').style.display='flex';
       el('#story-log').style.display='block';
+      if(d.scene_id)el('#scene-label').textContent=d.scene_id;
       if(d.narrative_log&&d.narrative_log.length>0){
         d.narrative_log.slice(-20).forEach(function(n){addLog(n.type||'narrative',n.text||'')});
       }
       renderNPCs(d.npcs||[]);
       nextRound();
     }else alert(d.error||'读档失败');
+  });
+}
+function doDeleteSave(filename){
+  if(!confirm('确认删除 '+filename+'?'))return;
+  fetch('/api/save/'+encodeURIComponent(filename),{method:'DELETE'}).then(function(r){return r.json()}).then(function(d){
+    if(d.ok){renderSaveList()}else alert('删除失败');
   });
 }
 

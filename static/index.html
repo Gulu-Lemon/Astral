@@ -145,11 +145,14 @@
 <!-- 存档面板 -->
 <div id="save-panel" style="display:none;">
   <div class="panel-overlay"></div>
-  <div class="panel-drawer">
-    <h3>存档管理</h3>
+  <div class="panel-drawer" style="width:360px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;">&#128190; 存档管理</h3>
+      <button id="btn-save-manual" class="mini-btn primary" style="padding:5px 14px;">&#43; 保存当前进度</button>
+    </div>
     <div id="save-slots"></div>
-    <p style="font-size:11px;color:var(--text2);margin-top:8px;">提示：读档后将推进一回合，建议在完成本轮操作后再存档。</p>
-    <button id="btn-close-save">关闭</button>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px;">读档后将推进一回合。自动存档在游戏事件时更新。</p>
+    <button id="btn-close-save" class="mini-btn" style="margin-top:8px;width:100%;">关闭</button>
   </div>
 </div>
 

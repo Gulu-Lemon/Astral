@@ -267,14 +267,15 @@ body {
 .panel-overlay { position:absolute; inset:0; background:rgba(0,0,0,.5); }
 .panel-drawer { position:absolute; right:0; top:0; bottom:0; width:300px; background:var(--bg2); padding:20px; border-left:1px solid var(--border); overflow-y:auto; }
 .panel-drawer h3 { margin-bottom:16px; color:var(--accent); }
-.save-slot { padding:10px; margin:6px 0; background:var(--bg); border:1px solid var(--border); border-radius:6px; display:flex; justify-content:space-between; align-items:center; font-size:13px; }
-.save-slot .slot-desc { flex:1; }
-.save-slot .slot-time { font-size:10px; color:var(--text2); }
-.save-slot button { padding:4px 10px; margin-left:6px; background:var(--bg3); border:1px solid var(--border); border-radius:4px; color:var(--text); cursor:pointer; font-size:12px; }
-.save-slot button:hover { background:var(--border); }
-.save-slot.auto { border-color:var(--accent2); }
-.save-slot.auto .slot-desc { color:var(--accent2); font-weight:600; }
-#btn-close-save { margin-top:12px; width:100%; padding:8px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; }
+
+/* Save item list */
+.save-item { padding:10px 12px; margin:4px 0; background:var(--bg); border:1px solid var(--border); border-radius:6px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.save-item-info { flex:1; min-width:0; }
+.save-item-name { font-size:12px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.save-item-meta { font-size:10px; color:var(--text2); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.save-item-actions { display:flex; gap:4px; flex-shrink:0; }
+.save-item-actions .mini-btn { padding:4px 10px; font-size:11px; }
+#btn-close-save { margin-top:12px; width:100%; padding:8px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; }
 
 /* Loading */
 #loading-overlay {
