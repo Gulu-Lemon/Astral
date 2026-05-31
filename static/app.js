@@ -532,9 +532,10 @@ function prologueFinish(){
       hideMainTabs();
       el('#npc-panel').style.display='block';
       el('#map-strip').style.display='flex';
-  el('#story-log').style.display='block';
-  el('#action-bar').style.display='';
-  addLog('narrative','序章结束。新的故事即将开始……');
+      el('#story-log').style.display='block';
+      el('#action-bar').style.display='';
+      if(s.scene_name)el('#scene-label').textContent=s.scene_name;
+      addLog('narrative','序章结束。新的故事即将开始……');
       renderNPCs(s.npcs);updateInfo(s);
       nextRound();
     });
@@ -566,7 +567,7 @@ function getAffectionLabel(v){
 
 // ====== GAME LOOP ======
 function nextRound(keepLog){
-  showLoading(true,'推演中...');if(!keepLog)clearLog();
+  showLoading(true,'推演中...');
   var es=new EventSource('/api/round');
   es.addEventListener('round_start',function(e){});
   es.addEventListener('agent_done',function(e){
@@ -613,13 +614,7 @@ function nextRound(keepLog){
   });
 }
 
-function clearLog(){el('#story-log').innerHTML=''}
-function addLog(type,text){
-  var div=document.createElement('div');div.className='log-block log-'+type;
-  if(type==='dialogue'){div.innerHTML='<strong>'+escHtml(text.split('：')[0])+'：</strong>'+escHtml(text.split('：').slice(1).join('：'))}
-  else{div.textContent=text}
-  el('#story-log').appendChild(div);el('#story-log').scrollTop=el('#story-log').scrollHeight;
-}
+function clearLog(){}
 
 function renderOptions(options){
   el('#action-bar').innerHTML='';el('#action-bar').style.display='';
@@ -666,6 +661,7 @@ function updateInfo(s){
   if(s.phase)el('#difficulty-badge').textContent={blackout:'熄灯时刻',undercurrent:'暗流涌动',hunting:'猎杀时刻'}[s.phase]||s.phase;
   if(s.floor)el('#floor-badge').textContent='L'+s.floor;
   if(s.npcs)renderNPCs(s.npcs);
+  if(s.scene_name)el('#scene-label').textContent=s.scene_name;
 }
 
 // ====== DIALOGUE ======
@@ -800,7 +796,7 @@ function doLoadSave(filename){
       el('#map-strip').style.display='flex';
       el('#story-log').style.display='block';
       el('#action-bar').style.display='';
-      if(d.scene_id)el('#scene-label').textContent=d.scene_id;
+      if(d.scene_name||d.scene_id)el('#scene-label').textContent=d.scene_name||d.scene_id;
       if(d.narrative_log&&d.narrative_log.length>0){
         d.narrative_log.slice(-20).forEach(function(n){addLog(n.type||'narrative',n.text||'')});
       }

@@ -72,6 +72,7 @@ def api_load(filename: str):
         "ok": True,
         "player_name": s.player_name,
         "scene_id": s.scene_id,
+        "scene_name": s.scenario.get("name", s.scene_id) if s.scenario else s.scene_id,
         "day": s.world.current_day,
         "time": s.world.current_time,
         "location": s.player_location,

@@ -1064,7 +1064,8 @@ D. ...
         self._check_phase_transition()
 
         _npc_list = [{"agent_id":aid,"name":self.agents[aid].profile.name if aid in self.world.player_met_npcs else "？","affection":self.agent_states[aid].affection_map.get("player",50) if aid in self.agent_states else 50,"location":self.world.npc_locations.get(aid,""),"nearby":self.world.npc_locations.get(aid,"")==self.player_location,"alive":self.agent_states.get(aid,DEAD_NPC).alive,"emotion":self.agent_states[aid].emotional_state if aid in self.agent_states else ""} for aid in sorted(self.agents.keys())]
-        progress_queue.put({"type":"round_end","day":self.world.current_day,"time":self.world.current_time,"phase":self.world.phase.value,"location":self.player_location,"floor":self.world.current_floor,"in_trial":bool(self.world.active_trial and self.world.active_trial.active),"alive_count":len(self.world.alive_npcs),"rule_text":"","time_event":getattr(self,'xbrdcst',None),"npcs":_npc_list})
+        _scene_label = self.scenario.get("name", self.scene_id) if self.scenario else self.scene_id
+        progress_queue.put({"type":"round_end","scene_name":_scene_label,"day":self.world.current_day,"time":self.world.current_time,"phase":self.world.phase.value,"location":self.player_location,"floor":self.world.current_floor,"in_trial":bool(self.world.active_trial and self.world.active_trial.active),"alive_count":len(self.world.alive_npcs),"rule_text":"","time_event":getattr(self,'xbrdcst',None),"npcs":_npc_list})
 
     def _advance_time(self):
         world = self.world
