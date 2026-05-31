@@ -81,6 +81,65 @@ class LLMClient:
             raise ValueError(msg) from e
         return data["choices"][0]["message"]["content"].strip()
 
+    def chat_stream(
+        self,
+        messages: list[dict[str, str]],
+        system: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: int = 2048,
+    ):
+        """流式聊天 — 逐 token 生成文本块（生成器）"""
+        if not self.api_key or not self.api_key.strip():
+            raise ValueError("API Key 未配置。请在设置中添加并选择一个 API 配置。")
+        if not self.base_url or not self.base_url.strip():
+            raise ValueError("API 地址未配置。请在设置中添加并选择一个 API 配置。")
+        if not self.model or not self.model.strip():
+            raise ValueError("模型名未配置。请在设置中添加并选择一个 API 配置。")
+
+        full_messages: list[dict[str, str]] = []
+        if system:
+            full_messages.append({"role": "system", "content": system})
+        full_messages.extend(messages)
+
+        url = f"{self.base_url}/chat/completions"
+        payload = {
+            "model": self.model,
+            "messages": full_messages,
+            "temperature": temperature if temperature is not None else self.default_temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        client = self._get_client()
+        try:
+            with client.stream("POST", url, json=payload, headers=headers) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+                        continue
+        except Exception as e:
+            msg = f"流式 API 调用失败。URL: {self.base_url}"
+            if hasattr(e, 'response') and e.response is not None:
+                msg += f"，HTTP {e.response.status_code}: {e.response.text[:200]}"
+            elif str(e).strip():
+                msg += f"，错误: {str(e)[:200]}"
+            raise ValueError(msg) from e
+
     def chat_json(
         self,
         messages: list[dict[str, str]],

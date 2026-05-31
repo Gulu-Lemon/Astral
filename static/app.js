@@ -541,9 +541,20 @@ function nextRound(){
   });
   es.addEventListener('arbiter_start',function(e){el('#loading-progress').textContent='仲裁中...'});
   es.addEventListener('arbiter_done',function(e){el('#loading-progress').textContent='叙述中...'});
+  var _streamDiv=null;
+  es.addEventListener('narrative_start',function(e){
+    _streamDiv=document.createElement('div');
+    _streamDiv.className='log-block log-narrative';
+    el('#story-log').appendChild(_streamDiv);
+  });
+  es.addEventListener('narrative_chunk',function(e){
+    var d=JSON.parse(e.data);
+    if(_streamDiv){_streamDiv.textContent+=d.text;el('#story-log').scrollTop=el('#story-log').scrollHeight}
+  });
   es.addEventListener('narrative_done',function(e){
     var d=JSON.parse(e.data);var t=d.text||'';
-    addLog('narrative',t);
+    if(_streamDiv){_streamDiv.textContent=t;_streamDiv=null}
+    else{addLog('narrative',t)}
     el('#action-bar').innerHTML='';
     if(d.options&&d.options.length>0){
       d.options.forEach(function(o){

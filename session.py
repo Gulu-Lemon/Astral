@@ -1031,18 +1031,22 @@ D. ...
         if bcast: self.gm._social_facts.append(bcast); self.xbrdcst = None
         try:
             materials = self.arbiter._build_narrative_materials(rulings)
-            narrative = self.gm.synthesize_round(rulings, self.world, self.agent_states, self.player_location, materials=materials)
+            full_text = ""
+            for chunk in self.gm.stream_narrative(rulings, self.world, self.agent_states, self.player_location, materials=materials):
+                full_text += chunk
+                progress_queue.put({"type":"narrative_chunk","text":chunk})
+            options = self.gm.generate_options(full_text, rulings, self.world, self.agent_states, self.player_location)
         except Exception as e:
             raise RuntimeError(f"GM叙事生成失败: {e}\n{traceback.format_exc()}") from e
-        self.last_narrative = narrative.text
-        self.last_options = narrative.options
-        self.world.last_narrative_summary = narrative.text[:800] if narrative.text else ""
+        self.last_narrative = full_text
+        self.last_options = options
+        self.world.last_narrative_summary = full_text[:800] if full_text else ""
         for f in social_facts: self._log("system", f"💬 {f}")
-        self._log("gm", narrative.text)
+        self._log("gm", full_text)
 
-        if self.logger: self.logger.log_narrative(narrative.text)
+        if self.logger: self.logger.log_narrative(full_text)
 
-        progress_queue.put({"type":"narrative_done","text":narrative.text,"options":narrative.options})
+        progress_queue.put({"type":"narrative_done","text":full_text,"options":options})
         self._check_phase_transition()
 
         _npc_list = [{"agent_id":aid,"name":self.agents[aid].profile.name if aid in self.world.player_met_npcs else "？","affection":self.agent_states[aid].affection_map.get("player",50) if aid in self.agent_states else 50,"location":self.world.npc_locations.get(aid,""),"nearby":self.world.npc_locations.get(aid,"")==self.player_location,"alive":self.agent_states.get(aid,DEAD_NPC).alive,"emotion":self.agent_states[aid].emotional_state if aid in self.agent_states else ""} for aid in sorted(self.agents.keys())]
