@@ -252,7 +252,9 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
                     if cp:
                         aff = st.affection_map.get('player', 50)
                         aff_hint = self._aff_hint(aff)
-                        sketch_parts = [f"  {cp.name}[{aid}]: {getattr(cp, 'personality', '') or '未知'}"]
+                        met = aid in world.player_met_npcs
+                        label = cp.name if met else getattr(cp, 'appearance', '某人')
+                        sketch_parts = [f"  {label}[{aid}]: {getattr(cp, 'personality', '') or '未知'}"]
                         sketch_parts.append(f"魔法: {getattr(cp, 'magic', '') or '未知'}")
                         sketch_parts.append(f"行为特征: {getattr(cp, 'play_core', '') or '未知'}")
                         sketch_parts.append(f"习惯: {getattr(cp, 'daily_habits', '') or '未知'}")
@@ -374,12 +376,14 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
                 cp = self._characters.get(aid)
                 if cp:
                     aff = st.affection_map.get('player', 50)
-                    sketch_parts = [f"  {cp.name}[{aid}]: {getattr(cp, 'personality', '') or '未知'}"]
+                    met = aid in world.player_met_npcs
+                    label = cp.name if met else getattr(cp, 'appearance', '某人')
+                    sketch_parts = [f"  {label}[{aid}]: {getattr(cp, 'personality', '') or '未知'}"]
                     sketch_parts.append(f"外貌: {getattr(cp, 'appearance', '') or ''}（对你{self._aff_hint(aff)}）")
                     npc_sketches.append(" | ".join(sketch_parts))
-        npc_sketch_str = "\n".join(npc_sketches) if npc_sketches else "（此处无人）"
+            npc_sketch_str = "\n".join(npc_sketches) if npc_sketches else "（此处无人）"
 
-        rel_lines = []
+            rel_lines = []
         for i in range(len(loc_npcs)):
             for j in range(i + 1, len(loc_npcs)):
                 a1, a2 = loc_npcs[i], loc_npcs[j]

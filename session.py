@@ -869,8 +869,10 @@ D. ...
         st = self.agent_states.get(agent_id)
         # 构建上下文
         parts = []
+        met = agent_id in self.world.player_met_npcs
+        display_name = profile.name if met else getattr(profile, 'appearance', '某人')
         parts.append(f"玩家：{player_name or '玩家'}")
-        parts.append(f"NPC：{profile.name}（{profile.personality or '性格未知'}）")
+        parts.append(f"NPC：{display_name}（{profile.personality or '性格未知'}）")
         parts.append(f"位置：{self.world.npc_locations.get(agent_id, '未知')}")
         parts.append(f"时间：第{self.world.current_day}天 {self.world.current_time}")
         if self.world.last_narrative_summary:
@@ -890,7 +892,7 @@ D. ...
                     if loc and (agent_id in getattr(e, 'witnesses', []) or getattr(e, 'location', '') == loc)]
         if visible:
             parts.append("近期周围事件：" + "；".join(visible[-2:]))
-        prompt = "\n".join(parts) + f"""\n\n请为{player_name or '玩家'}生成3个简洁自然的对话选项，可以对{profile.name}说。贴近当前关系、情境和剧情。输出 JSON：{{"suggestions":["...","...","..."]}} 只输出 JSON。"""
+        prompt = "\n".join(parts) + f"""\n\n请为{player_name or '玩家'}生成3个简洁自然的对话选项，可以对{display_name}说。贴近当前关系、情境和剧情。输出 JSON：{{"suggestions":["...","...","..."]}} 只输出 JSON。"""
         try:
             result = self.llm.chat_json(messages=[{"role":"user","content":prompt}], temperature=0.8, max_tokens=512)
             suggestions = result.get("suggestions",[])
@@ -1002,8 +1004,9 @@ D. ...
                 if intent.intent_type == IntentType.SOCIALIZE and intent.target_id == "player":
                     if aid in self.agents and self.agent_states.get(aid, DEAD_NPC).alive:
                         npc = self.agents[aid]
+                        met = aid in self.world.player_met_npcs
                         self.world.player_met_npcs.add(aid)
-                        npc_approaches.append({"agent_id":aid,"agent_name":npc.profile.name,"suggestions":self._gen_dialogue_suggestions(aid, self.player_name),"opener":intent.scene_hint})
+                        npc_approaches.append({"agent_id":aid,"agent_name":npc.profile.name if met else getattr(npc.profile,'appearance','某人'),"suggestions":self._gen_dialogue_suggestions(aid, self.player_name),"opener":intent.scene_hint})
             if npc_approaches: break
         if npc_approaches: progress_queue.put({"type":"npc_approaches","npcs":npc_approaches})
         _approach_notes = [f"{na['agent_name']}走向玩家，想要交谈" for na in npc_approaches]
