@@ -1,6 +1,6 @@
 # Issue 07 — GM 叙事将所有 NPC 行动平铺直叙
 
-Status: ready-for-agent
+Status: resolved (v2.6)
 
 ## 现象
 

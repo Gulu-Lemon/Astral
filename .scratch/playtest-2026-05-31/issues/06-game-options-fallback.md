@@ -1,6 +1,6 @@
 # Issue 06 — 正文选项为默认文本
 
-Status: ready-for-agent
+Status: resolved (v2.6)
 
 ## 现象
 

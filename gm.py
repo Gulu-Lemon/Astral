@@ -338,7 +338,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
 - 禁止添加素材中不存在的对话内容；禁止让角色说出素材中没有的话
 - 【角色忠诚度】：每个 NPC 必须严格按照其性格与行为特征行事
 - 【分段】每段5-6行。场景切换、视角转移、时间推进时换段。用空行分隔。
-- 【略写】标记为[可略写]的素材可合并为一句话带过
+- 【略写】标记为[可略写]的素材可合并为一句话带过。非针对玩家的NPC互动也可压缩。只对戏剧性强或与玩家直接相关的互动展开详细描写。
 - 已认识的人用名字，未认识的用外貌特征
 - 【叙事钩子】叙述末尾自然地埋入1-2个钩子——未说完的话、引起好奇的细节、欲言又止的眼神
 
@@ -359,11 +359,40 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
 
     def generate_options(self, narrative_text, rulings, world, agent_states, player_location):
         """基于已生成的叙述文本，生成结构化行动选项"""
-        visible_rulings = [r for r in rulings if self._is_player_visible(r, world, player_location)]
-
         scenario = get(self._scene_id)
         scene_name = scenario.get("name", "") if scenario else ""
         scene_tone = self._scene_tone()
+
+        loc_npcs = [aid for aid, aloc in world.npc_locations.items() if aloc == player_location and aid != "player"]
+
+        npc_sketches = []
+        for aid in loc_npcs:
+            st = agent_states.get(aid)
+            if st and st.alive:
+                cp = self._characters.get(aid)
+                if cp:
+                    aff = st.affection_map.get('player', 50)
+                    sketch_parts = [f"  {cp.name}[{aid}]: {getattr(cp, 'personality', '') or '未知'}"]
+                    sketch_parts.append(f"外貌: {getattr(cp, 'appearance', '') or ''}（对你{self._aff_hint(aff)}）")
+                    npc_sketches.append(" | ".join(sketch_parts))
+        npc_sketch_str = "\n".join(npc_sketches) if npc_sketches else "（此处无人）"
+
+        rel_lines = []
+        for i in range(len(loc_npcs)):
+            for j in range(i + 1, len(loc_npcs)):
+                a1, a2 = loc_npcs[i], loc_npcs[j]
+                st1, st2 = agent_states.get(a1), agent_states.get(a2)
+                if not st1 or not st2 or not st1.alive or not st2.alive:
+                    continue
+                aff12 = st1.affection_map.get(a2, 50)
+                aff21 = st2.affection_map.get(a1, 50)
+                if aff12 >= 65 or aff21 >= 65 or aff12 <= 25 or aff21 <= 25:
+                    cp1 = self._characters.get(a1)
+                    cp2 = self._characters.get(a2)
+                    n1 = cp1.name if cp1 else a1
+                    n2 = cp2.name if cp2 else a2
+                    rel_lines.append(f"  {n1}[{a1}]↔{n2}[{a2}]：互信{max(aff12,aff21)}/警惕{min(aff12,aff21)}")
+        rel_str = "\n".join(rel_lines) if rel_lines else "（暂无特殊关系）"
 
         known, unknown = [], []
         for aid in world.npc_locations:
@@ -372,31 +401,44 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
             if not st or not st.alive: continue
             if aid in world.player_met_npcs:
                 cp = self._characters.get(aid)
-                if cp: known.append(cp.name)
+                if cp: known.append(f"{cp.name}[{aid}]")
             else:
                 cp = self._characters.get(aid)
-                if cp: unknown.append(cp.appearance)
+                if cp: unknown.append(f"{cp.appearance}[{aid}]")
+        known_str = "、".join(known) if known else "（还没有）"
+        unknown_str = "、".join(unknown) if unknown else "无"
 
-        loc_npcs_known = []
-        for aid, aloc in world.npc_locations.items():
-            if aloc == player_location and aid != "player" and aid in world.player_met_npcs:
-                cp = self._characters.get(aid)
-                if cp: loc_npcs_known.append(f"{cp.name}[{aid}]")
+        room_features = scenario.get("room_features", {}).get(player_location, []) if scenario else []
+        feature_names = [f.get('name', '未知物品') for f in room_features] if room_features else [DEFAULT_ROOM_FEATURE]
+
+        social_desc = "、".join(self._social_facts) if self._social_facts else "（暂无特别动态）"
 
         prompt = f"""场景：{scene_name}。{scene_tone}
 玩家位置：{player_location}
-可用物品：{', '.join(n for n in known[:8])}
+
+【社交动态】{social_desc}
+
+【附近角色与可互动对象】
+{npc_sketch_str}
+
+【角色间关系】
+{rel_str}
+
+【已认识（用名字称呼）】{known_str}
+【尚未认识（用外貌特征称呼）】{unknown_str}
+【可互动物品】{', '.join(feature_names)}
+
+=====
 
 以下是本轮叙事内容：
-=====
-{narrative_text[-2000:]}
+{narrative_text[-3000:]}
 =====
 
 基于上述叙事，生成 4 个行动选项。要求：
-- 与叙事内容形成因果链（钩子→探索→追问）
-- 已认识 {', '.join(loc_npcs_known) if loc_npcs_known else '无'}
+- 与叙事内容形成因果链（钩子→探索→追问）；选项应与前面叙述有直接联系
+- target 必须从上述【已认识】或【尚未认识】列表中选取，用 ID 格式（如 No.01）
 - D 始终是"（自定义行动）"或开放选项
-- 不是"前往XX""查看XX"的干瘪动宾结构，写成完整句子
+- 不要用"前往XX""查看XX"的干瘪动宾结构，写成完整的句子
 
 输出 JSON：
 {{
@@ -411,7 +453,8 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
 """
 
         gm_prompt = self._gm_prompt or "你是故事旁白和场景导演。"
-        gm_prompt += f"\n\n场景：{scene_name}。{scene_tone}"
+        gm_prompt += f"\n\n场景：{scene_name}。{scene_tone}\n未认识的角色用外貌特征称呼，认识后用名字。\n\n【世界观】本作中的'魔法'是个人超常能力的代称。角色均来自普通现代世界（现代日本），她们的思维方式和认知是当代人的。禁止传统奇幻魔法比喻（魔法阵、魔力、魔杖、咒语），禁止魔法学院等奇幻设定。"
+
         try:
             result = self._llm.chat_json(
                 messages=[{"role": "user", "content": prompt}],
