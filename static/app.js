@@ -586,36 +586,14 @@ function nextRound(keepLog){
     var d=JSON.parse(e.data);
     if(_streamDiv){_streamDiv.textContent+=d.text;el('#story-log').scrollTop=el('#story-log').scrollHeight}
   });
+  es.addEventListener('options_start',function(e){
+    el('#action-bar').innerHTML='<span style="color:var(--text2);font-size:12px;">正在生成选项……</span>';el('#action-bar').style.display='';
+  });
   es.addEventListener('narrative_done',function(e){
     var d=JSON.parse(e.data);var t=d.text||'';
     if(_streamDiv){_streamDiv.textContent=t;_streamDiv=null}
     else{addLog('narrative',t)}
-    el('#action-bar').innerHTML='';el('#action-bar').style.display='';
-    if(d.options&&d.options.length>0){
-      d.options.forEach(function(o){
-        var btn=document.createElement('button');btn.className='action-btn';
-        btn.textContent=(o.label||o.text||'行动');
-        btn.onclick=function(){
-          if(o.type==='dialogue'){
-            document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
-          }
-          doStructured(o);hideActionBar();
-          if(o.type!=='dialogue'&&o.type!=='custom')showLoading(true,'推演中...');
-        };
-        el('#action-bar').appendChild(btn);
-      });
-    }else{
-      ['继续观察周围','与附近的人交谈','探索这个区域','（自定义行动）'].forEach(function(l,i){
-        var btn=document.createElement('button');btn.className='action-btn';
-        btn.textContent=l;
-        btn.onclick=function(){
-          document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
-          var t=i<3?'investigate':'custom';doStructured({label:l,type:t,target:null,room:null});hideActionBar();
-          if(t!=='custom')showLoading(true,'推演中...');
-        };
-        el('#action-bar').appendChild(btn);
-      });
-    }
+    renderOptions(d.options);
   });
   es.addEventListener('round_end',function(e){
     try{var d=JSON.parse(e.data);updateInfo(d);if(S.debug)renderDebugRulings(d);}catch(ex){}
@@ -643,6 +621,35 @@ function addLog(type,text){
   el('#story-log').appendChild(div);el('#story-log').scrollTop=el('#story-log').scrollHeight;
 }
 
+function renderOptions(options){
+  el('#action-bar').innerHTML='';el('#action-bar').style.display='';
+  if(!options||!options.length){
+    ['继续观察周围','与附近的人交谈','探索这个区域','（自定义行动）'].forEach(function(l,i){
+      var btn=document.createElement('button');btn.className='action-btn';
+      btn.textContent=l;
+      btn.onclick=function(){
+        document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
+        var t=i<3?'investigate':'custom';doStructured({label:l,type:t,target:null,room:null});hideActionBar();
+        if(t!=='custom')showLoading(true,'推演中...');
+      };
+      el('#action-bar').appendChild(btn);
+    });
+    return;
+  }
+  options.forEach(function(o){
+    var btn=document.createElement('button');btn.className='action-btn';
+    btn.textContent=(o.label||o.text||'行动');
+    btn.onclick=function(){
+      if(o.type==='dialogue'){
+        document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
+      }
+      doStructured(o);hideActionBar();
+      if(o.type!=='dialogue'&&o.type!=='custom')showLoading(true,'推演中...');
+    };
+    el('#action-bar').appendChild(btn);
+  });
+}
+
 function doStructured(o){
   if(!o||typeof o!=='object')return;
   var t=o.type||'';var target=o.target;var room=o.room;
@@ -666,6 +673,7 @@ function talkToNPC(aid){
   el('#dialogue-box').style.display='block';
   S.dialogueWith=aid;
   el('#dialogue-target').textContent='与 '+aid+' 对话';
+  el('#dialogue-hints').innerHTML='<span style="color:var(--text2);font-size:11px;">正在生成对话建议……</span>';
   fetch('/api/dialogue_suggestions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:aid})})
     .then(function(r){return r.json()}).then(function(d){
       var hints=el('#dialogue-hints');
@@ -791,7 +799,8 @@ function doLoadSave(filename){
         d.narrative_log.slice(-20).forEach(function(n){addLog(n.type||'narrative',n.text||'')});
       }
       renderNPCs(d.npcs||[]);
-      nextRound(true);
+      updateInfo(d);
+      renderOptions(d.options||[]);
     }else alert(d.error||'读档失败');
   });
 }

@@ -37,6 +37,7 @@ class SaveManager:
         prologue_turn: int = 0,
         post_admin_explored: bool = False,
         player_action_log: list = None,
+        last_options: list = None,
     ) -> str:
         """保存存档。slot="auto" → autosave.json；否则用 _next_filename() 生成新文件名。返回文件名。"""
         data = {
@@ -54,6 +55,7 @@ class SaveManager:
             "prologue_turn": prologue_turn,
             "post_admin_explored": post_admin_explored,
             "player_action_log": player_action_log or [],
+            "last_options": last_options or [],
         }
         if slot == "auto":
             fname = "autosave.json"
@@ -128,8 +130,8 @@ class SaveManager:
     def apply_loaded_state(
         self, data: dict, world: WorldState,
         agents: dict, agent_states: dict[str, AgentState],
-    ) -> tuple[str, str, int, str, list]:
-        """将 JSON data 恢复到运行时对象。返回 (player_name, player_location, round_count, scene_id, player_action_log)。"""
+    ) -> tuple[str, str, int, str, list, list]:
+        """将 JSON data 恢复到运行时对象。返回 (player_name, player_location, round_count, scene_id, player_action_log, last_options)。"""
         wd = data["world"]
         world.current_day = wd.get("current_day", 1)
         world.current_time = wd.get("current_time", "上午7点")
@@ -174,4 +176,5 @@ class SaveManager:
         round_count = data.get("round_count", 0)
         scene_id = data.get("scene_id", "")
         player_action_log = list(data.get("player_action_log", []))
-        return player_name, player_location, round_count, scene_id, player_action_log
+        last_options = list(data.get("last_options", []))
+        return player_name, player_location, round_count, scene_id, player_action_log, last_options

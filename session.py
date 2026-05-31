@@ -1043,10 +1043,15 @@ D. ...
         except Exception as e:
             progress_queue.put({"type":"narrative_chunk","text":"（推演受阻，请稍后重试。）"})
             self._log("system", f"GM叙事生成失败: {e}")
-        options = [{"label": "继续观察周围", "type": "investigate", "target": None, "room": None},
-                   {"label": "与附近的人交谈", "type": "custom", "target": None, "room": None},
-                   {"label": "探索这个区域", "type": "custom", "target": None, "room": None},
-                   {"label": "（自定义行动）", "type": "custom", "target": None, "room": None}]
+        progress_queue.put({"type":"options_start"})
+        try:
+            options = self.gm.generate_options(full_text, rulings, self.world, self.agent_states, self.player_location)
+        except Exception as e:
+            self._log("system", f"选项生成失败: {e}")
+            options = [{"label": "继续观察周围", "type": "investigate", "target": None, "room": None},
+                       {"label": "与附近的人交谈", "type": "custom", "target": None, "room": None},
+                       {"label": "探索这个区域", "type": "custom", "target": None, "room": None},
+                       {"label": "（自定义行动）", "type": "custom", "target": None, "room": None}]
         self.last_narrative = full_text
         self.last_options = options
         self.world.last_narrative_summary = full_text if full_text else ""
