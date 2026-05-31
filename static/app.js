@@ -566,6 +566,7 @@ function nextRound(){
     showLoading(false);
     _streamDiv=document.createElement('div');
     _streamDiv.className='log-block log-narrative';
+    _streamDiv.style.whiteSpace='pre-wrap';_streamDiv.style.lineHeight='1.8';
     el('#story-log').appendChild(_streamDiv);
   });
   es.addEventListener('narrative_chunk',function(e){
