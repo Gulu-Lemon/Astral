@@ -597,7 +597,7 @@ function doStructured(o){
   if(t==='dialogue'&&target){talkToNPC(target)}
   else if(t==='explore'&&room){exploreRoom(room)}
   else if(t==='investigate'&&o.label){doAction({action:o.label})}
-  else if(t==='custom'){el('#input-message').focus();el('#input-message').placeholder='自由行动...'}
+  else if(t==='custom'){doAction({action:o.label||'自定义行动'})}
   else{nextRound()}
 }
 
@@ -635,22 +635,22 @@ function sendDialogue(){
       else alert(d.error||'对话失败');
     });
 }
-function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null}
+function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null;nextRound()}
 
 // ====== EXPLORE / INVESTIGATE ======
 function exploreRoom(room){
-  fetch('/api/explore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:room})})
+  return fetch('/api/explore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:room})})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){addLog('narrative',d.description);renderMap(d)}
-      else alert(d.error||'移动失败');
+      if(d.ok){addLog('narrative',d.description);renderMap(d);nextRound()}
+      else{alert(d.error||'移动失败');hideActionBar();showLoading(false)}
     });
 }
 
 function doAction(data){
-  fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+  return fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){addLog('narrative',d.description)}
-      else alert(d.error||'行动失败');
+      if(d.ok){addLog('narrative',d.description);nextRound()}
+      else{alert(d.error||'行动失败');hideActionBar();showLoading(false)}
     });
 }
 

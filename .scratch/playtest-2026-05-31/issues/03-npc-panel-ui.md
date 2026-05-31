@@ -1,6 +1,6 @@
 # Issue 03 — NPC 角色栏 UI 异常
 
-Status: ready-for-agent
+Status: resolved (v2.6, commit ce39d77)
 
 ## 现象
 

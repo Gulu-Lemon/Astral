@@ -1,6 +1,6 @@
 # Issue 08 — 点击选项后"推演中"无响应
 
-Status: needs-info
+Status: resolved (v2.6, commit pending)
 
 ## 现象
 
