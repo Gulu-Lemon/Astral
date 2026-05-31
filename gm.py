@@ -331,6 +331,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
 以第二人称叙述（用"你"称呼玩家，NPC用"她"）。
 
 你是故事导演——将素材编织成流畅的文学叙述，而非凭空编造角色行为。要求：
+- 不要按人逐条叙述。选取最重要的2-3组互动展开详细描写，其余压缩为一句话带过或完全省略
 - 感官细节（光、声音、温度、气味）自然融入叙述
 - 决定互动的发生顺序和空间位置；突出2-3组关键互动，其余一笔带过
 - 非对话素材（动作描写、场景过渡）可以自由改写、删减、合并以优化节奏
@@ -351,7 +352,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
             for chunk in self._llm.chat_stream(
                 messages=[{"role": "user", "content": prompt}],
                 system=gm_prompt,
-                temperature=1.0, max_tokens=2048,
+                temperature=1.0, max_tokens=4096,
             ):
                 yield chunk
         except Exception:

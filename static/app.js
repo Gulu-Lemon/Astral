@@ -541,7 +541,7 @@ function renderNPCs(npcs){
       +(emotion?'<div class="npc-emotion">'+escHtml(emotion)+'</div>':'')
       +'<div class="npc-location">'+escHtml(n.location||'')+'</div>'
       +'<div class="aff-bar"><div class="aff-fill" style="width:'+affW+'"></div></div>'
-      +'<div class="aff-label">'+affLabel+' ('+aff+')</div>';
+      +'<div class="aff-label">'+affLabel+' ('+aff+')</div></div>';
   }).join('');
 }
 

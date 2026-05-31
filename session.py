@@ -1004,7 +1004,7 @@ D. ...
                         npc = self.agents[aid]
                         self.world.player_met_npcs.add(aid)
                         npc_approaches.append({"agent_id":aid,"agent_name":npc.profile.name,"suggestions":self._gen_dialogue_suggestions(aid, self.player_name),"opener":intent.scene_hint})
-                        break
+            if npc_approaches: break
         if npc_approaches: progress_queue.put({"type":"npc_approaches","npcs":npc_approaches})
         _approach_notes = [f"{na['agent_name']}走向玩家，想要交谈" for na in npc_approaches]
 
