@@ -1,6 +1,6 @@
 # Issue 05 — 游戏中点击 API 配置无法显示/退出
 
-Status: ready-for-agent
+Status: resolved (v2.6)
 
 ## 现象
 

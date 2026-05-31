@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded',function(){
   bind('#btn-settings','click',function(){switchTab('settings')});
   bind('#btn-cfg-save','click',saveSettings);
   bind('#btn-cfg-test','click',testAPIConnectionFromSettings);
+  bind('#btn-settings-close','click',restoreGameUI);
   bind('#btn-newgame','click',newGameConfirm);
   bind('#btn-close-save','click',function(){el('#save-panel').style.display='none'});
   bind('.panel-overlay','click',function(){el('#save-panel').style.display='none'});
@@ -90,6 +91,14 @@ function hideMainTabs(){
   el('#settings-tab').style.display='none';
 }
 
+function restoreGameUI(){
+  el('#settings-tab').style.display='none';
+  el('#npc-panel').style.display='block';
+  el('#map-strip').style.display='flex';
+  el('#story-log').style.display='block';
+  el('#action-bar').style.display='';
+}
+
 // ====== TAB SWITCH ======
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab)});
@@ -97,6 +106,17 @@ function switchTab(tab){
   el('#scene-screen').style.display=tab==='scene'?'block':'none';
   el('#settings-tab').style.display=tab==='settings'?'block':'none';
   el('#prologue-screen').style.display='none';
+  // 若游戏中打开设置，隐藏游戏 UI；关闭设置时恢复
+  var inGame=el('#npc-panel').style.display!=='none';
+  if(tab==='settings'&&inGame){
+    el('#npc-panel').style.display='none';el('#map-strip').style.display='none';
+    el('#story-log').style.display='none';el('#action-bar').style.display='none';
+    el('#trial-banner').style.display='none';
+  }
+  if(tab==='cards'||tab==='scene'){
+    el('#npc-panel').style.display='none';el('#map-strip').style.display='none';
+    el('#story-log').style.display='none';el('#action-bar').style.display='none';
+  }
   if(tab==='scene'){
     fetch('/api/scenes').then(function(r){return r.json()}).then(function(d){
       var list=el('#scene-list');if(!list)return;

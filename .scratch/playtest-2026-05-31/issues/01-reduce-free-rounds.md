@@ -1,6 +1,6 @@
 # Issue 01 — Free 阶段减少一轮
 
-Status: ready-for-agent
+Status: resolved (v2.6)
 
 ## 现象
 

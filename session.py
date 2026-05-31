@@ -389,7 +389,7 @@ D.选项内容"""
 
         # === Phase "free" → "admin"：自由探索到管理员登场 ===
         if self._prologue_phase == "free":
-            if self._prologue_turn >= 3:
+            if self._prologue_turn >= 2:
                 self._prologue_phase = "admin"
             elif self._is_leave_attempt(player_choice):
                 self._prologue_phase = "admin"
