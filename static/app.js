@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded',function(){
     b.addEventListener('click',function(){switchTab(b.dataset.tab)});
   });
 
-  bind('#btn-send','click',sendDialogue);
+  bind('#btn-send','click',function(){if(S.customAction){var e=document.createEvent('Event');e.initEvent('keydown',true,true);e.key='Enter';document.querySelector('#input-message').dispatchEvent(e)}else{sendDialogue()}});
   bind('#input-message','keydown',function(e){
     if(e.key==='Enter'){
       if(S.customAction){
@@ -549,7 +549,7 @@ function renderNPCs(npcs){
     var near=n.nearby?'<span class="nearby-marker">&#9679; 附近</span>':'';
     var emotion=n.emotion||'';
     var deadStyle=!n.alive?'style="opacity:.3"':'';
-    return '<div class="npc-card" onclick="talkToNPC(\''+escHtml(n.agent_id)+'\')" '+deadStyle+'>'
+    return '<div class="npc-card" onclick="S.npcDialogue=true;talkToNPC(\''+escHtml(n.agent_id)+'\')" '+deadStyle+'>'
       +'<div class="npc-name">'+escHtml(n.name)+' '+near+'</div>'
       +(emotion?'<div class="npc-emotion">'+escHtml(emotion)+'</div>':'')
       +'<div class="npc-location">'+escHtml(n.location||'')+'</div>'
@@ -565,8 +565,8 @@ function getAffectionLabel(v){
 }
 
 // ====== GAME LOOP ======
-function nextRound(){
-  showLoading(true,'推演中...');clearLog();
+function nextRound(keepLog){
+  showLoading(true,'推演中...');if(!keepLog)clearLog();
   var es=new EventSource('/api/round');
   es.addEventListener('round_start',function(e){});
   es.addEventListener('agent_done',function(e){
@@ -597,7 +597,6 @@ function nextRound(){
         btn.textContent=(o.label||o.text||'行动');
         btn.onclick=function(){
           if(o.type==='dialogue'){
-            addLog('dialogue','你：'+o.label);
             document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
           }
           doStructured(o);hideActionBar();showLoading(true,'推演中...');
@@ -615,7 +614,6 @@ function nextRound(){
         el('#action-bar').appendChild(btn);
       });
     }
-    showLoading(false);
   });
   es.addEventListener('round_end',function(e){
     try{var d=JSON.parse(e.data);updateInfo(d);if(S.debug)renderDebugRulings(d);}catch(ex){}
@@ -631,6 +629,7 @@ function nextRound(){
     showLoading(false);
     try{var d=JSON.parse(e.data);if(d.message){addLog('system','推演出错：'+d.message)}else{addLog('system','推演出错，请重试。')}}catch(ex){addLog('system','推演出错，请重试。')}
     try{es.close()}catch(ex){}
+    el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">重试</button>';el('#action-bar').style.display='';
   });
 }
 
@@ -645,7 +644,7 @@ function addLog(type,text){
 function doStructured(o){
   if(!o||typeof o!=='object')return;
   var t=o.type||'';var target=o.target;var room=o.room;
-  if(t==='dialogue'&&target){talkToNPC(target)}
+  if(t==='dialogue'&&target){S.npcDialogue=false;talkToNPC(target)}
   else if(t==='explore'&&room){exploreRoom(room)}
   else if(t==='investigate'&&o.label){doAction({action:o.label})}
   else if(t==='custom'){S.customAction=true;el('#dialogue-box').style.display='block';el('#dialogue-target').textContent='自由行动';el('#dialogue-hints').innerHTML='';el('#input-message').value='';el('#input-message').placeholder='输入你想做的事情...';el('#input-message').focus()}
@@ -686,14 +685,14 @@ function sendDialogue(){
       else alert(d.error||'对话失败');
     });
 }
-function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null;if(!S.customAction)nextRound();S.customAction=false}
+function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null;var wasCustom=S.customAction;S.customAction=false;if(!wasCustom&&!S.npcDialogue)nextRound();S.npcDialogue=false}
 
 // ====== EXPLORE / INVESTIGATE ======
 function exploreRoom(room){
   return fetch('/api/explore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:room})})
     .then(function(r){return r.json()}).then(function(d){
       if(d.ok){addLog('narrative',d.description);renderMap(d);nextRound()}
-      else{alert(d.error||'移动失败');hideActionBar();showLoading(false)}
+      else{alert(d.error||'移动失败');el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">继续</button>';el('#action-bar').style.display='';showLoading(false)}
     });
 }
 
@@ -701,7 +700,7 @@ function doAction(data){
   return fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
     .then(function(r){return r.json()}).then(function(d){
       if(d.ok){addLog('narrative',d.description);nextRound()}
-      else{alert(d.error||'行动失败');hideActionBar();showLoading(false)}
+      else{alert(d.error||'行动失败');el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">继续</button>';el('#action-bar').style.display='';showLoading(false)}
     });
 }
 
@@ -790,7 +789,7 @@ function doLoadSave(filename){
         d.narrative_log.slice(-20).forEach(function(n){addLog(n.type||'narrative',n.text||'')});
       }
       renderNPCs(d.npcs||[]);
-      nextRound();
+      nextRound(true);
     }else alert(d.error||'读档失败');
   });
 }
