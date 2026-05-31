@@ -19,12 +19,12 @@ document.addEventListener('DOMContentLoaded',function(){
     if(e.key==='Enter'){
       if(S.customAction){
         var msg=el('#input-message').value.trim();if(!msg)return;
-        el('#input-message').value='';
-        fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:msg})})
-          .then(function(r){return r.json()}).then(function(d){
-            addLog('narrative',d.description||'（自由行动）');
-            el('#dialogue-box').style.display='none';S.customAction=false;nextRound();
-          });
+         el('#input-message').value='';showLoading(true,'处理中...');
+         fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:msg})})
+           .then(function(r){return r.json()}).then(function(d){
+             addLog('narrative',d.description||'（自由行动）');
+             el('#dialogue-box').style.display='none';S.customAction=false;nextRound();
+           }).catch(function(){showLoading(false);el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">继续</button>';el('#action-bar').style.display=''});
       }else{sendDialogue()}
     }
   });
@@ -599,7 +599,8 @@ function nextRound(keepLog){
           if(o.type==='dialogue'){
             document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
           }
-          doStructured(o);hideActionBar();showLoading(true,'推演中...');
+          doStructured(o);hideActionBar();
+          if(o.type!=='dialogue'&&o.type!=='custom')showLoading(true,'推演中...');
         };
         el('#action-bar').appendChild(btn);
       });
@@ -609,7 +610,8 @@ function nextRound(keepLog){
         btn.textContent=l;
         btn.onclick=function(){
           document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
-          var t=i<3?'investigate':'custom';doStructured({label:l,type:t,target:null,room:null});hideActionBar();showLoading(true,'推演中...');
+          var t=i<3?'investigate':'custom';doStructured({label:l,type:t,target:null,room:null});hideActionBar();
+          if(t!=='custom')showLoading(true,'推演中...');
         };
         el('#action-bar').appendChild(btn);
       });
@@ -644,10 +646,10 @@ function addLog(type,text){
 function doStructured(o){
   if(!o||typeof o!=='object')return;
   var t=o.type||'';var target=o.target;var room=o.room;
-  if(t==='dialogue'&&target){S.npcDialogue=false;talkToNPC(target)}
+  if(t==='dialogue'&&target){showLoading(false);S.npcDialogue=false;talkToNPC(target)}
   else if(t==='explore'&&room){exploreRoom(room)}
   else if(t==='investigate'&&o.label){doAction({action:o.label})}
-  else if(t==='custom'){S.customAction=true;el('#dialogue-box').style.display='block';el('#dialogue-target').textContent='自由行动';el('#dialogue-hints').innerHTML='';el('#input-message').value='';el('#input-message').placeholder='输入你想做的事情...';el('#input-message').focus()}
+  else if(t==='custom'){showLoading(false);S.customAction=true;el('#dialogue-box').style.display='block';el('#dialogue-target').textContent='自由行动';el('#dialogue-hints').innerHTML='';el('#input-message').value='';el('#input-message').placeholder='输入你想做的事情...';el('#input-message').focus()}
   else{nextRound()}
 }
 
