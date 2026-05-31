@@ -468,23 +468,22 @@ function prologueFromOption(choice,label){
   fetch('/api/prologue/continue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:choice})})
     .then(function(r){return r.json()}).then(function(d){
       showLoading(false);
-      if(d.rule){addRuleText(d.rule)}
       if(d.error){addPrologueText('[错误] '+d.error);return}
       if(d.finished){prologueFinish()}else{
         addPrologueText(d.text);
+        if(d.rule){addRuleText(d.rule)}
         if(d.options&&d.options.length>0){showPrologueOptions(d.options)}
         else{prologueContinue(d.text||'')}
       }
     });
 }
-
 function prologueContinue(text){
   fetch('/api/prologue/continue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:text})})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.rule){addRuleText(d.rule)}
       if(d.error){addPrologueText('[错误] '+d.error);return}
       if(d.finished){prologueFinish()}else{
         addPrologueText(d.text);
+        if(d.rule){addRuleText(d.rule)}
         if(d.options&&d.options.length>0){showPrologueOptions(d.options)}
         else{prologueContinue(d.text||'')}
       }
@@ -558,7 +557,8 @@ function nextRound(){
     es.close();
   });
   es.addEventListener('error',function(e){
-    showLoading(false);addLog('system','推演出错，请重试。');
+    showLoading(false);
+    try{var d=JSON.parse(e.data);if(d.message){addLog('system','推演出错：'+d.message)}else{addLog('system','推演出错，请重试。')}}catch(ex){addLog('system','推演出错，请重试。')}
     try{es.close()}catch(ex){}
   });
 }

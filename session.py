@@ -364,18 +364,13 @@ D.选项内容"""
                 return {"text":"","options":[],"step":7,"finished":True}
             prompt = f"""{story_prefix}玩家选择了：{player_choice}
 
-请简短描述{self.player_name}做出选择后的瞬间——周围NPC的反应、气氛的变化、{self.player_name}做选择时的内心感受。用第二人称。100-150字。
-
-末尾只输出1个选项：
-【选项】
-A. 进入游戏"""
+请简短描述{self.player_name}做出选择后的瞬间——周围NPC的反应、气氛的变化、{self.player_name}做选择时的内心感受。用第二人称。100-150字。"""
             text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 0.9, 2048)
             self._prologue_truncate_context()
             self._prologue_context.append({"role":"user","content":prompt})
             self._prologue_context.append({"role":"assistant","content":text})
-            options = self._parse_prologue_options(text)
             narrative = self._strip_prologue_options(text)
-            if not options: options = ["进入游戏"]
+            options = ["进入游戏"]
             self._player_action_log.append(f"玩家选择了：{player_choice}")
             self.world.prologue_step = 6
             return {"text": narrative, "options": options, "step": 6}
@@ -448,16 +443,20 @@ NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
 
 {admin_entry}
 
-基于上述描述进行文学化叙事。以第三人称旁白。完整复述{gm_name}的广播或宣告内容（用引号括起）。描写环境氛围、声音的质感、众人的表情变化。以「{self.player_name}低下头，看着面前的规则。」或类似「规则展现在所有人面前。」收尾。
+            基于上述描述进行文学化叙事。以第三人称旁白。完整复述{gm_name}的广播或宣告内容（用引号括起）。描写环境氛围、声音的质感、众人的表情变化。以「{self.player_name}低下头，看着面前的规则。」或类似「规则展现在所有人面前。」收尾。
 
-不要描写任何人看完规则后的具体评论、内心反应或后续行动。不要生成选项。150-200字。"""
+不要描写任何人看完规则后的具体评论、内心反应或后续行动——这些事情发生在选项被选择之后。150-200字。
+
+末尾用【选项】标记输出4个{self.player_name}在听到规则后可能的反应方式：
+- 选项应紧扣当前场景基调（不是泛用选项），体现不同性格角色的应对风格
+- 格式：【选项】A. ... B. ... C. ... D. ..."""
             text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 0.9, 2048)
             self._prologue_truncate_context()
             self._prologue_context.append({"role":"user","content":prompt})
             self._prologue_context.append({"role":"assistant","content":text})
             narrative = self._strip_prologue_options(text)
-            # 硬输出选项：玩家对规则的反应
-            options = ["认真记在心里","和旁边的人低声讨论","表面平静，内心盘算","觉得荒谬/不以为然"]
+            options = self._parse_prologue_options(text)
+            if not options: options = ["认真记在心里","和旁边的人低声讨论","表面平静，内心盘算","觉得荒谬/不以为然"]
             self._player_action_log.append("管理员登场，规则宣布。")
             self.world.prologue_step = 6
             self._prologue_phase = "grouping"
@@ -496,7 +495,7 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
 格式：【选项】A. ... B. ... C. ... D. ...
 300-400字。"""
             self._prologue_phase = "chosen"
-        text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 2048)
+        text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 3072)
         self._prologue_truncate_context()
         self._prologue_context.append({"role":"user","content":prompt})
         self._prologue_context.append({"role":"assistant","content":text})
@@ -603,7 +602,7 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
             return opts
         # 回退：仅搜索文本末尾 500 字符，避免匹配叙述中的 A/B/C/D 句首
         tail = text[-500:]
-        for m in re.finditer(r'^[A-D][\.\s、]\s*(.+)$', tail, re.MULTILINE):
+        for m in re.finditer(r'^[A-D][\.\s、：:)]\s*(.+)$', tail, re.MULTILINE):
             opt_text = m.group(1).strip()
             if len(opt_text) > 1: opts.append(opt_text)
         return opts if len(opts) >= 2 else []
