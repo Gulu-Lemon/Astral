@@ -1,6 +1,6 @@
 # PrologueContinue 硬编码覆盖问题
 
-Status: ready-for-agent
+Status: resolved (v1.1)
 
 ## 问题
 
