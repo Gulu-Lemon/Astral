@@ -73,7 +73,7 @@ class NPCAgent:
                 messages=[{"role": "user", "content": prompt}],
                 system=self.profile.system_prompt,
                 temperature=1.0,
-                max_tokens=1024,
+                max_tokens=4096,
             )
         except Exception as e:
             import logging

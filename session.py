@@ -394,7 +394,9 @@ A. 进入游戏"""
 
         # === Phase "free" → "admin"：自由探索到管理员登场 ===
         if self._prologue_phase == "free":
-            if self._prologue_turn >= 3 or self._is_leave_attempt(player_choice):
+            if self._prologue_turn >= 3:
+                self._prologue_phase = "admin"
+            elif self._is_leave_attempt(player_choice):
                 self._prologue_phase = "admin"
         if self._prologue_phase == "free":
             template = self._scene_prompt("free", default="")
@@ -433,7 +435,7 @@ NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
             self._player_action_log.append(f"玩家选择了：{player_choice}")
             return {"text": narrative, "options": options, "step": self.world.prologue_step}
 
-        # === Phase "admin"：管理员登场/广播 + 规则宣布 → 选项=对规则的反应 ===
+        # === Phase "admin"：管理员登场/广播 + 规则硬输出 ===
         if self._prologue_phase == "admin":
             admin_template = self._scene_prompt("admin", default="")
             if admin_template:
@@ -443,25 +445,25 @@ NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
                     admin_entry = ""
             if not admin_entry:
                 if scene_id == "snow_train":
-                    admin_entry = f"列车长的声音从天花板上的扬声器中响起，带着轻微的电噪。广播系统发出「嗡——」的低频长音，随后是一声轻咳。「各位旅客，下午好。我是本次列车的列车长。请留意座椅口袋里的安全守则，仔细阅读。」广播在电流声中断开。他本人不会现身——只有这个声音在车厢中回荡。"
+                    admin_entry = f"列车长的声音从天花板上的扬声器中响起。广播系统发出「嗡——」的低频长音，随后是一声轻咳。「各位旅客，下午好。我是本次列车的列车长。请仔细阅读你们座椅口袋里的安全守则。」广播在电流声中断开。他本人不会现身——只有这个声音在车厢中回荡。每个人——包括{self.player_name}——都低头翻看起了手中的守则。"
                 else:
-                    admin_entry = f"经过一段时间的探索后，自然地引出了{gm_name}的出场。{gm_name}宣布了这里的规则。规则原文将由系统单独展示，你只需描写{gm_name}登场的气场和众人反应。"
+                    admin_entry = f"经过一段时间的探索后，自然地引出了{gm_name}的出场。{gm_name}宣布了这里的规则，并示意所有人仔细阅读。每个人——包括{self.player_name}——都低头翻看起了规则。"
             prompt = f"""{story_prefix}玩家选择：{player_choice}
 
 {admin_entry}
 
-所有人——包括{self.player_name}——都听完了规则。请描写听完规则后众人的反应：谁在沉思、谁不以为然、谁紧张地环顾四周、谁在低声交流。
-
-末尾生成4个选项——均为{self.player_name}对规则的反应：
-A. 认真记在心里
-B. 和旁边的人低声讨论
-C. 表面平静，内心盘算
-D. 觉得荒谬/不以为然
-
-格式：【选项】A. ... B. ... C. ... D. ...
-200-300字。"""
+请以第三人称旁白描写上述场景——{gm_name}的登场方式、声音特点、众人起初的惊讶或沉默。以「随后，每个人——包括{self.player_name}——都收到/看见了规则。」收尾。不要描写任何人看完规则后的评论或反应。不要生成选项。150-200字。"""
+            text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 0.9, 2048)
+            self._prologue_truncate_context()
+            self._prologue_context.append({"role":"user","content":prompt})
+            self._prologue_context.append({"role":"assistant","content":text})
+            narrative = self._strip_prologue_options(text)
+            # 硬输出选项：玩家对规则的反应
+            options = ["认真记在心里","和旁边的人低声讨论","表面平静，内心盘算","觉得荒谬/不以为然"]
+            self._player_action_log.append("管理员登场，规则宣布。")
             self.world.prologue_step = 6
             self._prologue_phase = "grouping"
+            return {"text": narrative, "options": options, "step": self.world.prologue_step, "rule": rule}
         elif self._prologue_phase == "grouping":
             # === Phase "grouping"：分组场景 ===
             explore_template = self._scene_prompt("explore", default="")
@@ -601,8 +603,9 @@ NPC 用外貌特征描述。NPC 档案如下，请严格按其外貌、性格、
             if len(opt_text) > 1: opts.append(opt_text)
         if len(opts) >= 2:
             return opts
-        # 回退：如果没有 A.B.C.D. 格式，尝试从整个文本中搜索
-        for m in re.finditer(r'^[A-D][\.\s、]\s*(.+)$', text, re.MULTILINE):
+        # 回退：仅搜索文本末尾 500 字符，避免匹配叙述中的 A/B/C/D 句首
+        tail = text[-500:]
+        for m in re.finditer(r'^[A-D][\.\s、]\s*(.+)$', tail, re.MULTILINE):
             opt_text = m.group(1).strip()
             if len(opt_text) > 1: opts.append(opt_text)
         return opts if len(opts) >= 2 else []

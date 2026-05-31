@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from typing import Optional, Union
 
-from state import WorldState, AgentState
+from state import WorldState, AgentState, Event, GamePhase, DifficultyMode, TrialState
 
 SAVES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saves")
 
@@ -123,7 +123,6 @@ class SaveManager:
         # 恢复审判状态
         trial_data = wd.get("active_trial")
         if trial_data:
-            from state import TrialState
             world.active_trial = TrialState.from_dict(trial_data)
         else:
             world.active_trial = None
