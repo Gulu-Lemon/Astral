@@ -493,15 +493,18 @@ function prologueContinue(text){
 function prologueFinish(){
   showLoading(true,'完成序章...');
   fetch('/api/prologue/finish',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
-    showLoading(false);
-    S.inPrologue=false;
-    el('#prologue-screen').style.display='none';
-    hideMainTabs();
-    el('#npc-panel').style.display='block';
-    el('#map-strip').style.display='flex';
-    el('#story-log').style.display='block';
-    addLog('narrative','序章结束。新的故事即将开始……');
-    nextRound();
+    fetch('/api/state').then(function(r){return r.json()}).then(function(s){
+      showLoading(false);
+      S.inPrologue=false;
+      el('#prologue-screen').style.display='none';
+      hideMainTabs();
+      el('#npc-panel').style.display='block';
+      el('#map-strip').style.display='flex';
+      el('#story-log').style.display='block';
+      addLog('narrative','序章结束。新的故事即将开始……');
+      renderNPCs(s.npcs);updateInfo(s);
+      nextRound();
+    });
   });
 }
 
@@ -539,7 +542,7 @@ function nextRound(){
   es.addEventListener('arbiter_start',function(e){el('#loading-progress').textContent='仲裁中...'});
   es.addEventListener('arbiter_done',function(e){el('#loading-progress').textContent='叙述中...'});
   es.addEventListener('narrative_done',function(e){
-    var d=JSON.parse(e.data);var t=d.narrative||'';
+    var d=JSON.parse(e.data);var t=d.text||'';
     addLog('narrative',t);
     el('#action-bar').innerHTML='';
     if(d.options&&d.options.length>0){
@@ -553,11 +556,11 @@ function nextRound(){
     showLoading(false);
   });
   es.addEventListener('round_end',function(e){
-    try{var d=JSON.parse(e.data);updateInfo(d);refreshSlots();if(S.debug)renderDebugRulings(d);}catch(ex){}
+    try{var d=JSON.parse(e.data);updateInfo(d);if(S.debug)renderDebugRulings(d);}catch(ex){}
     es.close();
   });
   es.addEventListener('npc_approaches',function(e){
-    try{var d=JSON.parse(e.data);if(d.npcs)renderApproaches(d.npcs)}catch(ex){}
+    try{var d=JSON.parse(e.data);if(d.npcs){d.npcs.forEach(function(n){addLog('system',n.agent_name+'走向你，想与你交谈。')})}}catch(ex){}
   });
   es.onmessage=function(e){
     try{var d=JSON.parse(e.data);if(d.type==='error'){showLoading(false);addLog('system','推演出错：'+(d.message||''));try{es.close()}catch(ex){}}}catch(ex){}
