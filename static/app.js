@@ -532,8 +532,9 @@ function prologueFinish(){
       hideMainTabs();
       el('#npc-panel').style.display='block';
       el('#map-strip').style.display='flex';
-      el('#story-log').style.display='block';
-      addLog('narrative','序章结束。新的故事即将开始……');
+  el('#story-log').style.display='block';
+  el('#action-bar').style.display='';
+  addLog('narrative','序章结束。新的故事即将开始……');
       renderNPCs(s.npcs);updateInfo(s);
       nextRound();
     });
@@ -589,12 +590,19 @@ function nextRound(){
     var d=JSON.parse(e.data);var t=d.text||'';
     if(_streamDiv){_streamDiv.textContent=t;_streamDiv=null}
     else{addLog('narrative',t)}
-    el('#action-bar').innerHTML='';
+    el('#action-bar').innerHTML='';el('#action-bar').style.display='';
     if(d.options&&d.options.length>0){
       d.options.forEach(function(o){
         var btn=document.createElement('button');btn.className='action-btn';
         btn.textContent=(o.label||o.text||'行动');
         btn.onclick=function(){doStructured(o);hideActionBar();showLoading(true,'推演中...')};
+        el('#action-bar').appendChild(btn);
+      });
+    }else{
+      ['继续观察周围','与附近的人交谈','探索这个区域','（自定义行动）'].forEach(function(l,i){
+        var btn=document.createElement('button');btn.className='action-btn';
+        btn.textContent=l;
+        btn.onclick=function(){var t=i<3?'investigate':'custom';doStructured({label:l,type:t,target:null,room:null});hideActionBar();showLoading(true,'推演中...')};
         el('#action-bar').appendChild(btn);
       });
     }
@@ -767,6 +775,7 @@ function doLoadSave(filename){
       el('#npc-panel').style.display='block';
       el('#map-strip').style.display='flex';
       el('#story-log').style.display='block';
+      el('#action-bar').style.display='';
       if(d.scene_id)el('#scene-label').textContent=d.scene_id;
       if(d.narrative_log&&d.narrative_log.length>0){
         d.narrative_log.slice(-20).forEach(function(n){addLog(n.type||'narrative',n.text||'')});
