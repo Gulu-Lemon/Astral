@@ -595,14 +595,23 @@ function nextRound(){
       d.options.forEach(function(o){
         var btn=document.createElement('button');btn.className='action-btn';
         btn.textContent=(o.label||o.text||'行动');
-        btn.onclick=function(){doStructured(o);hideActionBar();showLoading(true,'推演中...')};
+        btn.onclick=function(){
+          if(o.type==='dialogue'){
+            addLog('dialogue','你：'+o.label);
+            document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
+          }
+          doStructured(o);hideActionBar();showLoading(true,'推演中...');
+        };
         el('#action-bar').appendChild(btn);
       });
     }else{
       ['继续观察周围','与附近的人交谈','探索这个区域','（自定义行动）'].forEach(function(l,i){
         var btn=document.createElement('button');btn.className='action-btn';
         btn.textContent=l;
-        btn.onclick=function(){var t=i<3?'investigate':'custom';doStructured({label:l,type:t,target:null,room:null});hideActionBar();showLoading(true,'推演中...')};
+        btn.onclick=function(){
+          document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
+          var t=i<3?'investigate':'custom';doStructured({label:l,type:t,target:null,room:null});hideActionBar();showLoading(true,'推演中...');
+        };
         el('#action-bar').appendChild(btn);
       });
     }
