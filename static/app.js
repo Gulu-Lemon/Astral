@@ -689,13 +689,19 @@ function sendDialogue(){
   var aid=S.dialogueWith;if(!aid)return;
   var msg=el('#input-message').value.trim();if(!msg)return;
   el('#input-message').value='';
+  S.dialogueWith=null;
+  el('#dialogue-box').style.display='none';
+  addLog('dialogue','你：'+msg);
+  var ph=document.createElement('div');ph.className='log-block log-system';ph.id='_reply_ph';ph.textContent='互动中……';el('#story-log').appendChild(ph);el('#story-log').scrollTop=el('#story-log').scrollHeight;
   fetch('/api/dialogue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:aid,message:msg})})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){addLog('dialogue','你：'+msg);addLog('dialogue',d.agent_name+'：'+d.response)}
-      else alert(d.error||'对话失败');
+      var p=el('#_reply_ph');if(p)p.remove();
+      if(d.ok){addLog('dialogue',d.agent_name+'：'+d.response)}
+      else{alert(d.error||'对话失败')}
+      nextRound();
     });
 }
-function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null;var wasCustom=S.customAction;S.customAction=false;if(!wasCustom&&!S.npcDialogue)nextRound();S.npcDialogue=false}
+function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null;S.customAction=false;S.npcDialogue=false}
 
 // ====== EXPLORE / INVESTIGATE ======
 function exploreRoom(room){
