@@ -1197,7 +1197,7 @@ D. ...
 
     def _check_phase_transition(self):
         world = self.world
-        if world.phase == GamePhase.BLACKOUT and self.player_created and len(world.player_met_npcs) >= len(self.agents):
+        if world.phase == GamePhase.BLACKOUT and self.player_created and len(world.player_met_npcs) >= 3:
             world.phase = GamePhase.UNDERCURRENT
         if world.phase == GamePhase.UNDERCURRENT and world.difficulty != DifficultyMode.STORY and world.discovered_bodies:
             world.phase = GamePhase.HUNTING

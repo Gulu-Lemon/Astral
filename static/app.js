@@ -15,7 +15,19 @@ document.addEventListener('DOMContentLoaded',function(){
   });
 
   bind('#btn-send','click',sendDialogue);
-  bind('#input-message','keydown',function(e){if(e.key==='Enter')sendDialogue()});
+  bind('#input-message','keydown',function(e){
+    if(e.key==='Enter'){
+      if(S.customAction){
+        var msg=el('#input-message').value.trim();if(!msg)return;
+        el('#input-message').value='';
+        fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:msg})})
+          .then(function(r){return r.json()}).then(function(d){
+            addLog('narrative',d.description||'（自由行动）');
+            el('#dialogue-box').style.display='none';S.customAction=false;nextRound();
+          });
+      }else{sendDialogue()}
+    }
+  });
   bind('#btn-close-dialogue','click',closeDialogue);
   bind('#btn-save','click',showSaves);
   bind('#btn-save-manual','click',doSaveManual);
@@ -619,7 +631,7 @@ function doStructured(o){
   if(t==='dialogue'&&target){talkToNPC(target)}
   else if(t==='explore'&&room){exploreRoom(room)}
   else if(t==='investigate'&&o.label){doAction({action:o.label})}
-  else if(t==='custom'){doAction({action:o.label||'自定义行动'})}
+  else if(t==='custom'){S.customAction=true;el('#dialogue-box').style.display='block';el('#dialogue-target').textContent='自由行动';el('#dialogue-hints').innerHTML='';el('#input-message').value='';el('#input-message').placeholder='输入你想做的事情...';el('#input-message').focus()}
   else{nextRound()}
 }
 
@@ -657,7 +669,7 @@ function sendDialogue(){
       else alert(d.error||'对话失败');
     });
 }
-function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null;nextRound()}
+function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null;if(!S.customAction)nextRound();S.customAction=false}
 
 // ====== EXPLORE / INVESTIGATE ======
 function exploreRoom(room){
