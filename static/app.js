@@ -692,7 +692,7 @@ function sendDialogue(){
   fetch('/api/dialogue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent_id:aid,message:msg})})
     .then(function(r){return r.json()}).then(function(d){
       var p=el('#_reply_ph');if(p)p.remove();
-      if(d.ok){addLog('dialogue',d.agent_name+'：'+d.response)}
+      if(d.ok){addLog('dialogue',d.agent_name+'：'+d.response);fetch('/api/state').then(function(r){return r.json()}).then(function(s){renderNPCs(s.npcs)})}
       else{alert(d.error||'对话失败')}
       nextRound();
     });
