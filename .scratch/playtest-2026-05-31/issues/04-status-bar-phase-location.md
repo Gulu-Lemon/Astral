@@ -1,6 +1,6 @@
 # Issue 04 — 状态栏显示 "blackout" 而非地点名
 
-Status: ready-for-agent
+Status: resolved (v2.6)
 
 ## 现象
 

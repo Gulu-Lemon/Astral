@@ -543,6 +543,7 @@ function nextRound(){
   es.addEventListener('arbiter_done',function(e){el('#loading-progress').textContent='叙述中...'});
   var _streamDiv=null;
   es.addEventListener('narrative_start',function(e){
+    showLoading(false);
     _streamDiv=document.createElement('div');
     _streamDiv.className='log-block log-narrative';
     el('#story-log').appendChild(_streamDiv);
@@ -603,7 +604,7 @@ function doStructured(o){
 
 function hideActionBar(){el('#action-bar').innerHTML=''}
 function updateInfo(s){
-  if(s.day)el('#game-info').textContent='第'+s.day+'天 '+s.time;
+  if(s.day)el('#game-info').textContent='第'+s.day+'天 '+s.time+(s.location?' · '+s.location:'');
   if(s.phase)el('#difficulty-badge').textContent=s.phase;
   if(s.floor)el('#floor-badge').textContent='L'+s.floor;
   if(s.npcs)renderNPCs(s.npcs);

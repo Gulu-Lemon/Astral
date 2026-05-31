@@ -1,6 +1,6 @@
 # Issue 02 — 流式输出开始时撤掉加载遮罩
 
-Status: ready-for-agent
+Status: resolved (v2.6)
 
 ## 现象
 
