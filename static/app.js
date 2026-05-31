@@ -819,7 +819,7 @@ function testAPIConnectionFromSettings(){
 // ====== UTILS ======
 function showLoading(on,text){var o=el('#loading-overlay');if(on){o.style.display='flex';el('#loading-text').textContent=text||'思考中...';el('#loading-progress').textContent=''}else{o.style.display='none'}}
 function hideSettings(){switchTab('cards')}
-function newGameConfirm(){if(confirm('开始新游戏？当前进度将丢失。')){location.reload()}}
+function newGameConfirm(){if(confirm('开始新游戏？当前进度将丢失。')){fetch('/api/new_game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene_id:'tianji_maze'})}).then(function(){location.reload()})}}
 function shutdownServer(){if(confirm('确认关闭服务端？')){document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0d1117;color:#c9d1d9;font-size:20px;flex-direction:column;font-family:Segoe UI,Microsoft YaHei,sans-serif;"><div style="font-size:48px;">&#9632;</div><div style="margin-top:20px;font-weight:600;">Astral 已关闭</div><div style="font-size:13px;color:#8b949e;margin-top:10px;">请关闭此窗口</div></div>';fetch('/api/shutdown')}}
 function toggleDebugPanel(){var p=el('#debug-panel');var b=p.querySelector('.debug-body');b.style.display=b.style.display==='none'?'block':'none'}
 function renderDebugRulings(d){if(!d||!d.rulings)return;el('#debug-rulings').innerHTML=d.rulings.map(function(r){return '<div>'+r[0]+' '+r[1]+'</div>'}).join('')}

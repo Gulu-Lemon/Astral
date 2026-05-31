@@ -437,12 +437,8 @@ NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
 
         # === Phase "admin"：管理员登场/广播 + 规则硬输出 ===
         if self._prologue_phase == "admin":
-            admin_template = self._scene_prompt("admin", default="")
-            if admin_template:
-                try:
-                    admin_entry = admin_template.format(player_name=self.player_name, gm_name=gm_name)
-                except (KeyError, ValueError):
-                    admin_entry = ""
+            admin_entry = self._scene_prompt("admin", default="").format(
+                player_name=self.player_name, gm_name=gm_name)
             if not admin_entry:
                 if scene_id == "snow_train":
                     admin_entry = f"列车长的声音从天花板上的扬声器中响起。广播系统发出「嗡——」的低频长音，随后是一声轻咳。「各位旅客，下午好。我是本次列车的列车长。请仔细阅读你们座椅口袋里的安全守则。」广播在电流声中断开。他本人不会现身——只有这个声音在车厢中回荡。每个人——包括{self.player_name}——都低头翻看起了手中的守则。"
@@ -452,7 +448,9 @@ NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
 
 {admin_entry}
 
-请以第三人称旁白描写上述场景——{gm_name}的登场方式、声音特点、众人起初的惊讶或沉默。以「随后，每个人——包括{self.player_name}——都收到/看见了规则。」收尾。不要描写任何人看完规则后的评论或反应。不要生成选项。150-200字。"""
+基于上述描述进行文学化叙事。以第三人称旁白。完整复述{gm_name}的广播或宣告内容（用引号括起）。描写环境氛围、声音的质感、众人的表情变化。以「{self.player_name}低下头，看着面前的规则。」或类似「规则展现在所有人面前。」收尾。
+
+不要描写任何人看完规则后的具体评论、内心反应或后续行动。不要生成选项。150-200字。"""
             text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 0.9, 2048)
             self._prologue_truncate_context()
             self._prologue_context.append({"role":"user","content":prompt})
