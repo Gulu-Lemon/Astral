@@ -523,6 +523,21 @@ class Arbiter:
             parts.append(f"深层动机：{intent.reasoning}")
         return "\n".join(parts)
 
+    def check_body_discovery(self, person_name: str, action_desc: str, location: str, hiding_spot: str) -> bool:
+        """LLM判定：该角色的行动是否可能发现藏在hiding_spot的尸体。"""
+        prompt = f"""角色[{person_name}]正在：{action_desc}
+位置：{location}
+这间房里有一具尸体，位于：{hiding_spot}
+
+基于该角色的行动描述，她/他是否有可能发现这具尸体？只回答 YES 或 NO。"""
+        try:
+            resp = self._llm.chat(messages=[{"role":"user","content":prompt}],
+                                  system="你是一个情境推理器。根据角色的位置和行动，判断她是否可能发现尸体。只回答YES或NO。",
+                                  temperature=0, max_tokens=5)
+            return "YES" in resp.upper()
+        except Exception:
+            return False
+
     def _get_name(self, agent_id: Optional[str]) -> str:
         if not agent_id:
             return "未知"

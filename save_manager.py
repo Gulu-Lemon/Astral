@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from typing import Optional, Union
 
-from state import WorldState, AgentState, Event, GamePhase, DifficultyMode, TrialState
+from state import WorldState, AgentState, Event, GamePhase, DifficultyMode, TrialState, BodyRecord
 
 SAVES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saves")
 
@@ -155,7 +155,7 @@ class SaveManager:
         world.world_revelation_phase = wd.get("world_revelation_phase", 1)
         world.player_magic = wd.get("player_magic", "")
         world.alive_npcs = set(wd.get("alive_npcs", []))
-        world.undiscovered_bodies = list(wd.get("undiscovered_bodies", []))
+        world.undiscovered_bodies = [BodyRecord.from_dict(b) if isinstance(b, dict) else b for b in wd.get("undiscovered_bodies", [])]
         world.cursed_npc = wd.get("cursed_npc", "")
         world.atmosphere = wd.get("atmosphere", "")
         world.last_narrative_summary = wd.get("last_narrative_summary", "")

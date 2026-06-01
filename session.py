@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from state import (WorldState, AgentState, Intent, Event, Evidence,
                    IntentType, GamePhase, DifficultyMode, TrialState,
-                   DEAD_NPC, roll_risk)
+                   BodyRecord, DEAD_NPC, roll_risk)
 from llm import LLMClient
 from agent_engine import NPCAgent
 from arbiter import Arbiter
@@ -953,24 +953,15 @@ D. ...
                     self.world.public_events.append(evt)
                     murder_events.append(evt)
                     if victim in self.agent_states: self.agent_states[victim].alive = False; self.world.alive_npcs.discard(victim)
-                    self.world.undiscovered_bodies.append(victim)
+                    # 提取藏尸位置：从 intent prose 或 room features 推断
+                    hiding = r.intent.prose or r.intent.reasoning or ""
+                    if not hiding or len(hiding) < 3:
+                        rf = self.scenario.get("room_features", {}).get(self.world.npc_locations.get(victim,""), []) if self.scenario else []
+                        hiding = (rf[0].get("name","") if rf else "") + "旁" if rf else ""
+                    br = BodyRecord(victim_id=victim, actor_id=r.intent.agent_id, location=self.world.npc_locations.get(victim,""), hiding_spot=hiding[:80], tick=self.world.global_tick)
+                    self.world.undiscovered_bodies.append(br)
 
-        newly_discovered = []
-        for victim_id in list(self.world.undiscovered_bodies):
-            body_loc = self.world.npc_locations.get(victim_id,"")
-            if not body_loc: continue
-            present = [aid for aid, aloc in self.world.npc_locations.items() if aloc == body_loc and aid != victim_id and self.agent_states.get(aid, DEAD_NPC).alive]
-            if self.player_location == body_loc: present.append("player")
-            if len(present) >= 2: newly_discovered.append(victim_id)
-        for victim_id in newly_discovered:
-            self.world.undiscovered_bodies = [v for v in self.world.undiscovered_bodies if v != victim_id]
-            self.world.discovered_bodies.append(victim_id)
-            if self.world.difficulty in (DifficultyMode.NORMAL, DifficultyMode.WITCH):
-                self.world.active_trial = TrialState(active=True, phase="investigation", victim_id=victim_id)
-            self.world.rounds_since_last_murder = 0
-            self.world.first_murder_delayed = False
-            vn = self.agent_states[victim_id].name if victim_id in self.agent_states else victim_id
-            self._log("system", f"尸体被发现：{vn}。魔女审判开始。")
+        self._check_body_discovery(intents)
 
         # 写入 NPC-NPC 对话到 chat_history
         for ruling in rulings:
@@ -1211,6 +1202,59 @@ D. ...
             world.phase = GamePhase.UNDERCURRENT
         if world.phase == GamePhase.UNDERCURRENT and world.difficulty != DifficultyMode.STORY and world.discovered_bodies:
             world.phase = GamePhase.HUNTING
+
+    def _check_body_discovery(self, intents: dict):
+        """LLM判定尸体发现：对尸体所在房间的每个活人，根据其行动判断是否发现尸体。"""
+        import re
+        newly_found = []
+        for br in list(self.world.undiscovered_bodies):
+            if br.broadcast:
+                newly_found.append(br); continue
+            body_loc = br.location
+            candidates = []
+            # NPC candidates
+            for aid, il in intents.items():
+                if self.world.npc_locations.get(aid,"") != body_loc: continue
+                if aid == br.victim_id: continue
+                if aid not in self.agent_states or not self.agent_states[aid].alive: continue
+                action = ""
+                for i in il:
+                    if i.prose: action = i.prose; break
+                    if i.reasoning: action = i.reasoning; break
+                if not action: action = f"{self.agents[aid].profile.name if aid in self.agents else aid}在{body_loc}停留"
+                candidates.append(("npc", aid, action))
+            # Player candidate
+            if self.player_location == body_loc:
+                candidates.append(("player", "player", f"玩家在{body_loc}观察周围环境"))
+            if not candidates: continue
+
+            for kind, pid, action in candidates:
+                name = self.agents[pid].profile.name if kind == "npc" and pid in self.agents else self.player_name
+                try:
+                    found = self.arbiter.check_body_discovery(name, action, body_loc, br.hiding_spot)
+                except Exception:
+                    found = False
+                if not found: continue
+                br.discovered_by.append(pid)
+                if not br.first_discoverer:
+                    br.first_discoverer = pid
+                if len(br.discovered_by) >= 2 and not br.broadcast:
+                    br.broadcast = True
+                    vn = self.agent_states[br.victim_id].name if br.victim_id in self.agent_states else br.victim_id
+                    fd_name = self.agents[br.first_discoverer].profile.name if br.first_discoverer in self.agents else self.player_name
+                    self._log("system", f"尸体被发现：{vn}。{fd_name}在{br.hiding_spot}发现了尸体。魔女审判开始。")
+                    self.gm._social_facts.append(f"【紧急】{fd_name}在{br.location}的{br.hiding_spot}发现了{vn}的尸体！")
+                    self.world.discovered_bodies.append(br.victim_id)
+                    if self.world.difficulty in (DifficultyMode.NORMAL, DifficultyMode.WITCH):
+                        self.world.active_trial = TrialState(active=True, phase="investigation", victim_id=br.victim_id)
+                    self.world.rounds_since_last_murder = 0
+                    self.world.first_murder_delayed = False
+                    newly_found.append(br)
+                    break
+        # 清理已广播的
+        for br in newly_found:
+            if br in self.world.undiscovered_bodies:
+                self.world.undiscovered_bodies.remove(br)
 
     def trial_investigate(self, action: str) -> str:
         trial = self.world.active_trial

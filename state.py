@@ -277,6 +277,32 @@ class TrialState:
         )
 
 
+# ====== 尸体记录 ======
+
+@dataclass
+class BodyRecord:
+    victim_id: str = ""
+    actor_id: str = ""
+    location: str = ""
+    hiding_spot: str = ""
+    tick: int = 0
+    first_discoverer: Optional[str] = None
+    discovered_by: list[str] = field(default_factory=list)
+    broadcast: bool = False
+
+    def to_dict(self) -> dict:
+        return {"victim_id":self.victim_id,"actor_id":self.actor_id,"location":self.location,
+                "hiding_spot":self.hiding_spot,"tick":self.tick,"first_discoverer":self.first_discoverer,
+                "discovered_by":list(self.discovered_by),"broadcast":self.broadcast}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "BodyRecord":
+        return cls(victim_id=d.get("victim_id",""),actor_id=d.get("actor_id",""),
+                   location=d.get("location",""),hiding_spot=d.get("hiding_spot",""),
+                   tick=d.get("tick",0),first_discoverer=d.get("first_discoverer"),
+                   discovered_by=list(d.get("discovered_by",[])),broadcast=d.get("broadcast",False))
+
+
 # ====== 主要状态 ======
 
 @dataclass
@@ -309,7 +335,7 @@ class WorldState:
     # ====== 案件节奏控制 ======
     rounds_since_last_murder: int = 99
     first_murder_delayed: bool = True
-    undiscovered_bodies: list[str] = field(default_factory=list)
+    undiscovered_bodies: list[BodyRecord] = field(default_factory=list)
     cursed_npc: str = ""
     atmosphere: str = ""  # 本轮氛围上下文（由 GameSession 填充）
     last_narrative_summary: str = ""  # 上轮 GM 叙事摘要（注入 Agent 感知）
@@ -348,7 +374,7 @@ class WorldState:
             "knowledge_flags": sorted(self.knowledge_flags),
             "rounds_since_last_murder": self.rounds_since_last_murder,
             "first_murder_delayed": self.first_murder_delayed,
-            "undiscovered_bodies": list(self.undiscovered_bodies),
+            "undiscovered_bodies": [b.to_dict() for b in self.undiscovered_bodies],
             "cursed_npc": self.cursed_npc,
             "atmosphere": self.atmosphere,
             "last_narrative_summary": self.last_narrative_summary,
@@ -383,7 +409,7 @@ class WorldState:
             knowledge_flags=set(d.get("knowledge_flags", [])),
             rounds_since_last_murder=d.get("rounds_since_last_murder", 99),
             first_murder_delayed=d.get("first_murder_delayed", True),
-            undiscovered_bodies=list(d.get("undiscovered_bodies", [])),
+            undiscovered_bodies=[BodyRecord.from_dict(b) if isinstance(b, dict) else b for b in d.get("undiscovered_bodies", [])],
             cursed_npc=d.get("cursed_npc", ""),
             atmosphere=d.get("atmosphere", ""),
             last_narrative_summary=d.get("last_narrative_summary", ""),
