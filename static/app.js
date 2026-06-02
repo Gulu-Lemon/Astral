@@ -614,6 +614,12 @@ function nextRound(keepLog){
           if(ts.active){showTrialBanner(ts.victim_name||'?',ts.phase);_trialRemaining=ts.timer_remaining||60;}
         });
       }
+      if(d.ending_resolved){
+        // 如果存档加载时已经结局完成，显示结局画面
+        fetch('/api/state').then(function(r){return r.json()}).then(function(s){
+          if(s.ending_chosen) showEndingScreen(s.ending_chosen);
+        });
+      }
     }catch(ex){}
     es.close();
   });
@@ -628,6 +634,12 @@ function nextRound(keepLog){
     try{var d=JSON.parse(e.data);if(d.message){addLog('system','推演出错：'+d.message)}else{addLog('system','推演出错，请重试。')}}catch(ex){addLog('system','推演出错，请重试。')}
     try{es.close()}catch(ex){}
     el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">重试</button>';el('#action-bar').style.display='';
+  });
+  es.addEventListener('ending_triggered',function(e){
+    try{
+      var d=JSON.parse(e.data);
+      showEndingBanner(d);
+    }catch(ex){}
   });
 }
 
@@ -1128,4 +1140,47 @@ function doSleep(){
       showLoading(false);
       if(d.ok){addLog('system',d.result);nextRound();}
     });
+}
+
+function showEndingBanner(d){
+  el('#ending-banner').style.display='flex';
+  el('#ending-info').textContent='命运的抉择';
+  el('#trial-banner').style.display='none';
+  el('#action-bar').innerHTML='';el('#action-bar').style.display='none';
+  
+  var branches=d.branches||[];
+  var html='';
+  branches.forEach(function(b){
+    var catLabel=b.category==='true'?' [真实]':b.category==='bad'?' [终结]':'';
+    html+='<button onclick="chooseEnding(\''+b.ending_id+'\')">'+escHtml(b.label)+catLabel+'</button>';
+  });
+  el('#ending-choices').innerHTML=html;
+  
+  // 用 GM 生成真相揭示
+  showLoading(true,'命运降临...');
+  addLog('system','—— 真相揭示 ——');
+  fetch('/api/ending/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ending_id:'_revelation_only'})})
+    .catch(function(){showLoading(false);});
+  showLoading(false);
+}
+
+function chooseEnding(endingId){
+  showLoading(true,'结局中...');
+  fetch('/api/ending/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ending_id:endingId})})
+    .then(function(r){return r.json()}).then(function(d){
+      showLoading(false);
+      if(d.ok){
+        showEndingScreen(d.text);
+      }
+    });
+}
+
+function showEndingScreen(text){
+  el('#narrative-content').style.display='none';
+  el('#npc-panel').style.display='none';
+  el('#ending-banner').style.display='none';
+  el('#ending-screen').style.display='flex';
+  el('#ending-text').textContent=text||'故事结束了。';
+  el('#action-bar').innerHTML='';el('#action-bar').style.display='none';
+  S.playersTurn=false;
 }

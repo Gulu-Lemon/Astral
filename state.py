@@ -393,6 +393,61 @@ class TrialState:
         )
 
 
+# ====== 结局系统 ======
+
+@dataclass
+class EndingBranch:
+    ending_id: str = ""          # "eternal_summer" 等唯一标识
+    label: str = ""               # 显示给玩家的选项文字
+    category: str = ""            # "true" | "bad" | "open"
+    condition: str = ""           # 条件表达式（空=始终可用）
+    narrative_hint: str = ""      # LLM 生成结局叙事的指导方向
+
+    def to_dict(self) -> dict:
+        return {
+            "ending_id": self.ending_id,
+            "label": self.label,
+            "category": self.category,
+            "condition": self.condition,
+            "narrative_hint": self.narrative_hint,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "EndingBranch":
+        return cls(
+            ending_id=d.get("ending_id", ""),
+            label=d.get("label", ""),
+            category=d.get("category", ""),
+            condition=d.get("condition", ""),
+            narrative_hint=d.get("narrative_hint", ""),
+        )
+
+
+@dataclass
+class EndingConfig:
+    trigger_type: str = ""       # "survivor_count" | "location_reached"
+    trigger_value: str = ""       # 阈值数字或房间名
+    revelation_hint: str = ""     # 真相揭示叙事方向
+    branches: list["EndingBranch"] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "trigger_type": self.trigger_type,
+            "trigger_value": self.trigger_value,
+            "revelation_hint": self.revelation_hint,
+            "branches": [b.to_dict() for b in self.branches],
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "EndingConfig":
+        return cls(
+            trigger_type=d.get("trigger_type", ""),
+            trigger_value=str(d.get("trigger_value", "")),
+            revelation_hint=d.get("revelation_hint", ""),
+            branches=[EndingBranch.from_dict(b) for b in d.get("branches", [])],
+        )
+
+
 # ====== 尸体记录 ======
 
 @dataclass
@@ -456,6 +511,9 @@ class WorldState:
     cursed_npc: str = ""
     atmosphere: str = ""  # 本轮氛围上下文（由 GameSession 填充）
     last_narrative_summary: str = ""  # 上轮 GM 叙事摘要（注入 Agent 感知）
+    ending_triggered: bool = False    # 结局条件已触发
+    ending_chosen: str = ""            # 玩家选择的 ending_id
+    ending_resolved: bool = False     # 结局叙事已完成
 
     def all_npcs_met(self) -> bool:
         return self.player_met_npcs >= {
@@ -496,6 +554,9 @@ class WorldState:
             "cursed_npc": self.cursed_npc,
             "atmosphere": self.atmosphere,
             "last_narrative_summary": self.last_narrative_summary,
+            "ending_triggered": self.ending_triggered,
+            "ending_chosen": self.ending_chosen,
+            "ending_resolved": self.ending_resolved,
         }
 
     @classmethod
@@ -532,6 +593,9 @@ class WorldState:
             cursed_npc=d.get("cursed_npc", ""),
             atmosphere=d.get("atmosphere", ""),
             last_narrative_summary=d.get("last_narrative_summary", ""),
+            ending_triggered=d.get("ending_triggered", False),
+            ending_chosen=d.get("ending_chosen", ""),
+            ending_resolved=d.get("ending_resolved", False),
         )
 
 

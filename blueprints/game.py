@@ -153,3 +153,10 @@ def api_sleep():
     result = _sess.session.sleep_until_morning()
     return jsonify({"ok": True, "result": result, "time": _sess.session.world.current_time,
                     "day": _sess.session.world.current_day})
+
+@game_bp.route("/api/ending/choose", methods=["POST"])
+def api_ending_choose():
+    ending_id = (request.get_json() or {}).get("ending_id", "")
+    text = _sess.session.choose_ending(ending_id)
+    return jsonify({"ok": True, "text": text, "ending_id": ending_id,
+                    "ending_resolved": _sess.session.world.ending_resolved})

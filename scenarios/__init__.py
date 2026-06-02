@@ -31,6 +31,7 @@ def add_module(module, scene_id: str = ""):
         "rule_text": getattr(module, "RULE_TEXT", ""),
         "trial_rules": getattr(module, "TRIAL_RULES", ""),
         "trial_rules_v2": getattr(module, "TRIAL_RULES_V2", {}),
+        "ending_config": getattr(module, "ENDING_CONFIG", None),
         "event_times": getattr(module, "EVENT_TIMES", []),
         "start_room": getattr(module, "START_ROOM", ""),
         "npc_ids": getattr(module, "NPC_IDS", [f"No.{i:02d}" for i in range(1, 13)]),

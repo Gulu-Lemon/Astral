@@ -1072,6 +1072,12 @@ D. ...
         self.last_narrative = full_text
         self.last_options = options
         self.world.last_narrative_summary = full_text if full_text else ""
+
+        # 结局检查
+        ending_data = self._check_ending_trigger()
+        if ending_data:
+            progress_queue.put({"type": "ending_triggered", **ending_data})
+
         for f in social_facts: self._log("system", f"💬 {f}")
         self._log("gm", full_text)
 
@@ -1082,7 +1088,7 @@ D. ...
 
         _npc_list = [{"agent_id":aid,"name":self.agents[aid].profile.name if aid in self.world.player_met_npcs else "？","affection":self.agent_states[aid].affection_map.get("player",50) if aid in self.agent_states else 50,"location":self.world.npc_locations.get(aid,""),"nearby":self.world.npc_locations.get(aid,"")==self.player_location,"alive":self.agent_states.get(aid,DEAD_NPC).alive,"emotion":self.agent_states[aid].emotional_state if aid in self.agent_states else ""} for aid in sorted(self.agents.keys())]
         _scene_label = self.scenario.get("name", self.scene_id) if self.scenario else self.scene_id
-        progress_queue.put({"type":"round_end","scene_name":_scene_label,"day":self.world.current_day,"time":self.world.current_time,"phase":self.world.phase.value,"location":self.player_location,"floor":self.world.current_floor,"in_trial":bool(self.world.active_trial and self.world.active_trial.active),"alive_count":len(self.world.alive_npcs),"rule_text":"","time_event":getattr(self,'xbrdcst',None),"npcs":_npc_list})
+        progress_queue.put({"type":"round_end","scene_name":_scene_label,"day":self.world.current_day,"time":self.world.current_time,"phase":self.world.phase.value,"location":self.player_location,"floor":self.world.current_floor,"in_trial":bool(self.world.active_trial and self.world.active_trial.active),"alive_count":len(self.world.alive_npcs),"rule_text":"","time_event":getattr(self,'xbrdcst',None),"npcs":_npc_list,"ending_triggered":self.world.ending_triggered,"ending_resolved":self.world.ending_resolved})
 
     def _tick(self, minutes: int = 1):
         """推进游戏时间并执行所有 Agent 的 ActionPlan。"""
@@ -1691,6 +1697,50 @@ D. ...
                     top_suspect = oid
             opinions[aid] = {"top_suspect": top_suspect, "confidence": round(top_weight, 2)}
         return opinions
+
+    def _check_ending_trigger(self) -> dict | None:
+        if self.world.ending_triggered or self.world.ending_resolved:
+            return None
+        cfg = self.scenario.get("ending_config") if self.scenario else None
+        if not cfg: return None
+        tt = cfg.get("trigger_type", ""); tv = cfg.get("trigger_value", "")
+        trig = False
+        if tt == "survivor_count":
+            try:
+                if len(self.world.alive_npcs) <= int(tv): trig = True
+            except: pass
+        elif tt == "location_reached":
+            if self.player_location == str(tv): trig = True
+        if not trig: return None
+        self.world.ending_triggered = True; self._log("system", "结局触发。")
+        branches = []
+        for b in cfg.get("branches", []):
+            cond = b.get("condition", "")
+            if not cond: branches.append(b); continue
+            if cond == "trial_executed_wrong":
+                if self.world.active_trial and self.world.active_trial.defendant_id != self.world.active_trial.murder_actor_id:
+                    branches.append(b)
+        return {"trigger_type": tt, "revelation_hint": cfg.get("revelation_hint", ""), "branches": branches}
+
+    def choose_ending(self, ending_id: str) -> str:
+        if not self.world.ending_triggered or self.world.ending_resolved: return "结局不可用。"
+        cfg = self.scenario.get("ending_config") if self.scenario else None
+        if not cfg: return "本场景未定义结局。"
+        branch = next((b for b in cfg.get("branches", []) if b.get("ending_id") == ending_id), None)
+        if not branch: return "未知结局分支。"
+        self.world.ending_chosen = ending_id
+        self.world.ending_resolved = True
+        hint = branch.get("narrative_hint", "故事结束。")
+        surv = [self.agents[aid].profile.name for aid in self.world.alive_npcs if aid in self.agents]
+        dead = [self.agents[aid].profile.name for aid in self.npc_ids if aid not in self.world.alive_npcs and aid in self.agents]
+        try:
+            return self.llm.chat(messages=[{"role":"user","content":f"""请根据以下指导生成结局叙事（300-500字）。
+指导：{hint}
+玩家：{self.player_name} | 幸存者：{'、'.join(surv) or '无'} | 逝者：{'、'.join(dead) or '无'}
+场景：{self.scenario.get('name','') if self.scenario else ''}
+用第二人称叙述，情感饱满。结局。"""}], system="你是故事旁白。结局叙事，文笔精美、情感深沉。", temperature=1.0, max_tokens=1024)
+        except: return f"故事结束。{self.player_name}做出了选择。——{branch.get('label','')}"
+
 _session_lock = threading.Lock()
 session = GameSession()
 scenarios.load("tianji_maze"); scenarios.load("cloud_holiday"); scenarios.load("snow_train")

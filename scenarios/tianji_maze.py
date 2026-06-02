@@ -123,5 +123,17 @@ TRIAL_RULES = """审判规则：
 • 每个嫌疑人需要至少 2 票支持才能进入最终投票
 • 最终投票：多数决"""
 
+ENDING_CONFIG = {
+    "trigger_type": "location_reached",
+    "trigger_value": "引航台",
+    "revelation_hint": "到达三层引航台后揭示：这座迷宫并非魔法构筑，而是一艘承载人类最后火种的宇宙方舟。管理员AI长期故障，导致数百名被唤醒者死亡。少女们意外修复了管理员，现在她们必须做出选择。",
+    "branches": [
+        {"ending_id": "return_to_sleep", "label": "回到休眠舱，继续前往新世界的航程", "category": "open",
+         "condition": "", "narrative_hint": "休眠舱缓缓关闭，少女们带着这段奇异的记忆沉入梦中。方舟的引擎重新启动，驶向遥远的星系。也许有一天她们会在新的世界醒来，带着在这里结下的羁绊。"},
+        {"ending_id": "stay_on_ship", "label": "留在飞船上，一起监督管理员的运行", "category": "open",
+         "condition": "", "narrative_hint": "少女们选择不去休眠。她们开始在飞船上生活，监督着修复后的管理员AI。在茫茫星海中，这艘方舟就是她们的家。方舟的舷窗外，繁星如尘，而她们的眼里映着彼此的倒影。"},
+    ],
+}
+
 # ====== 事件计时 ======
 EVENT_TIMES = {"morning_start":7,"noon":12,"afternoon":14,"evening":18,"nightfall":20,"midnight":24,"trial_deadline":22}

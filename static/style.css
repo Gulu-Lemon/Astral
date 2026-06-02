@@ -373,6 +373,15 @@ body {
 #action-bar .ev-add-wrap { display:flex; gap:4px; align-items:center; margin-left:6px; border-left:1px solid var(--border); padding-left:8px; }
 #action-bar .ev-add-wrap input { width:120px; padding:4px 10px; background:var(--bg); border:1px solid var(--border); border-radius:14px; color:var(--text); font-size:11px; outline:none; }
 
+/* Ending */
+#ending-banner { display:none; align-items:center; gap:12px; padding:10px 16px; background:rgba(126,231,135,.1); border-top:2px solid var(--accent2); border-bottom:1px solid var(--border); flex-shrink:0; }
+#ending-info { font-weight:600; font-size:14px; color:var(--accent2); min-width:60px; }
+#ending-choices { display:flex; gap:6px; flex-wrap:wrap; }
+#ending-choices button { padding:6px 14px; background:var(--bg3); border:2px solid var(--accent2); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; transition:all .2s; }
+#ending-choices button:hover { border-color:var(--accent); background:var(--bg); color:var(--accent); }
+#ending-screen { display:none; flex-direction:column; align-items:center; flex:1; overflow-y:auto; padding-top:20px; }
+#ending-text { max-width:700px; }
+
 /* Debug panel */
 #debug-panel {
   position:fixed; bottom:0; left:0; right:0; z-index:300;
