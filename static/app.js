@@ -638,7 +638,13 @@ function nextRound(keepLog){
   es.addEventListener('ending_triggered',function(e){
     try{
       var d=JSON.parse(e.data);
-      showEndingBanner(d);
+      if(d.auto_ending){
+        // 自动结局（玩家死亡等），不显示选项横幅
+        showEndingScreen('');
+        chooseEnding(d.auto_ending);
+      }else{
+        showEndingBanner(d);
+      }
     }catch(ex){}
   });
 }

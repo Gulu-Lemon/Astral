@@ -514,6 +514,7 @@ class WorldState:
     ending_triggered: bool = False    # 结局条件已触发
     ending_chosen: str = ""            # 玩家选择的 ending_id
     ending_resolved: bool = False     # 结局叙事已完成
+    player_is_murderer: bool = False  # 玩家是否犯下过谋杀
 
     def all_npcs_met(self) -> bool:
         return self.player_met_npcs >= {
@@ -557,8 +558,8 @@ class WorldState:
             "ending_triggered": self.ending_triggered,
             "ending_chosen": self.ending_chosen,
             "ending_resolved": self.ending_resolved,
+            "player_is_murderer": self.player_is_murderer,
         }
-
     @classmethod
     def from_dict(cls, d: dict) -> "WorldState":
         return cls(
@@ -596,6 +597,7 @@ class WorldState:
             ending_triggered=d.get("ending_triggered", False),
             ending_chosen=d.get("ending_chosen", ""),
             ending_resolved=d.get("ending_resolved", False),
+            player_is_murderer=d.get("player_is_murderer", False),
         )
 
 

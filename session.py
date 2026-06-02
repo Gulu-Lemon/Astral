@@ -1468,14 +1468,55 @@ D. ...
         return votes
 
     def _trial_execution(self) -> str:
-        trial = self.world.active_trial; defendant = trial.defendant_id; victim = trial.victim_id
-        if not defendant: return "无法确定真凶。一名被怀疑者被带入阴影。"
+        trial = self.world.active_trial
+        defendant = trial.defendant_id
+        victim = trial.victim_id
+        is_guilty = (defendant == trial.murder_actor_id)
+
+        if not defendant:
+            trial.active = False
+            return "无法确定真凶。一名被怀疑者被带入阴影。"
+
         en = self.agent_states[defendant].name if defendant in self.agent_states else "未知"
-        self.agent_states[defendant].alive = False; self.world.alive_npcs.discard(defendant); trial.executed_id = defendant
-        is_guilty = (defendant == self.world.public_events[-1].actor_id) if self.world.public_events else False
+        is_player = (defendant == "player")
+        scene_id = self.scene_id or ""
+
+        # 玩家是谋杀犯：标记
+        if trial.murder_actor_id == "player":
+            self.world.player_is_murderer = True
+
+        # 云端假期特殊规则：指认错误 = 凶手外全员抹杀
+        if not is_guilty and "cloud" in scene_id:
+            murderer = trial.murder_actor_id
+            for aid in list(self.world.alive_npcs):
+                if aid != murderer:
+                    if aid in self.agent_states:
+                        self.agent_states[aid].alive = False
+                    self.world.alive_npcs.discard(aid)
+            trial.executed_id = defendant
+            trial.active = False
+            text = f"指认错误。{'凶手以外' if murderer else ''}所有幸存者被集体清退。"
+            self._log("system", f"云端假期全员抹杀: 真凶{murderer}存活，其余被清退。")
+            return text
+
+        # 常规处刑
+        if is_player:
+            st = self.agent_states.get("player")
+            if st: st.alive = False
+        else:
+            self.agent_states[defendant].alive = False
+            self.world.alive_npcs.discard(defendant)
+        trial.executed_id = defendant
+
         try:
-            text = self.llm.chat(messages=[{"role":"user","content":f"魔女审判结果：{en}被指认为魔女。{'她是真凶。结合她的魔法、性格、动机和绝望，创作揭露创伤的处刑演出。' if is_guilty else '她是无辜的。创作充满遗言与抗争的处刑演出。'} 150-250字。"}], system="你是故事旁白。冷静精准且富有悲剧美学。", temperature=1.0, max_tokens=1024)
-        except: text = f"{en}被处刑。{'她的罪孽随她一同消逝。' if is_guilty else '她的无辜随着执行成为永恒的遗憾。'}"
+            if is_guilty:
+                prompt = f"魔女审判结果：{en}被指认为魔女。她是真凶。结合她的魔法、性格、动机和绝望，创作揭露创伤的处刑演出。150-250字。"
+            else:
+                prompt = f"魔女审判结果：{en}被指认为魔女。她是无辜的。创作充满遗言与抗争的处刑演出。150-250字。"
+            text = self.llm.chat(messages=[{"role":"user","content":prompt}],
+                system="你是故事旁白。冷静精准且富有悲剧美学。", temperature=1.0, max_tokens=1024)
+        except Exception:
+            text = f"{en}被处刑。{'罪孽随她消逝。' if is_guilty else '她的无辜成为永恒遗憾。'}"
         trial.active = False
         return text
 
@@ -1703,6 +1744,16 @@ D. ...
             return None
         cfg = self.scenario.get("ending_config") if self.scenario else None
         if not cfg: return None
+
+        # 玩家死亡 → 自动死亡结局
+        pst = self.agent_states.get("player")
+        if pst and not pst.alive:
+            self.world.ending_triggered = True
+            self.world.ending_chosen = "player_dead"
+            self._log("system", "玩家死亡，触发死亡结局。")
+            return {"trigger_type": "player_dead", "auto_ending": "player_dead",
+                    "revelation_hint": "", "branches": []}
+
         tt = cfg.get("trigger_type", ""); tv = cfg.get("trigger_value", "")
         trig = False
         if tt == "survivor_count":
@@ -1712,18 +1763,34 @@ D. ...
         elif tt == "location_reached":
             if self.player_location == str(tv): trig = True
         if not trig: return None
+
         self.world.ending_triggered = True; self._log("system", "结局触发。")
+
+        # 评估条件分支
         branches = []
+        player_murderer = self.world.player_is_murderer
         for b in cfg.get("branches", []):
             cond = b.get("condition", "")
-            if not cond: branches.append(b); continue
-            if cond == "trial_executed_wrong":
-                if self.world.active_trial and self.world.active_trial.defendant_id != self.world.active_trial.murder_actor_id:
+            if not cond:
+                branches.append(b)
+            elif cond == "player_is_murderer" and player_murderer:
+                branches.append(b)
+            elif cond == "player_not_murderer" and not player_murderer:
+                branches.append(b)
+            elif cond == "trial_executed_wrong":
+                trial = self.world.active_trial
+                if trial and trial.defendant_id != trial.murder_actor_id:
                     branches.append(b)
+
         return {"trigger_type": tt, "revelation_hint": cfg.get("revelation_hint", ""), "branches": branches}
 
     def choose_ending(self, ending_id: str) -> str:
         if not self.world.ending_triggered or self.world.ending_resolved: return "结局不可用。"
+        if ending_id == "player_dead" or ending_id == "_revelation_only":
+            self.world.ending_chosen = ending_id
+            self.world.ending_resolved = True
+            return self._death_ending_text()
+
         cfg = self.scenario.get("ending_config") if self.scenario else None
         if not cfg: return "本场景未定义结局。"
         branch = next((b for b in cfg.get("branches", []) if b.get("ending_id") == ending_id), None)
@@ -1740,6 +1807,18 @@ D. ...
 场景：{self.scenario.get('name','') if self.scenario else ''}
 用第二人称叙述，情感饱满。结局。"""}], system="你是故事旁白。结局叙事，文笔精美、情感深沉。", temperature=1.0, max_tokens=1024)
         except: return f"故事结束。{self.player_name}做出了选择。——{branch.get('label','')}"
+
+    def _death_ending_text(self) -> str:
+        """生成玩家死亡结局的叙事文本。不写外界现实。"""
+        scene_name = self.scenario.get("name", "这个世界") if self.scenario else "这个世界"
+        try:
+            return self.llm.chat(messages=[{"role":"user","content":f"""玩家{self.player_name}已经死亡。
+这是游戏的终点。请用第二人称，直接描写死亡本身的感受——
+意识的消散、最后的感知、或宁静的虚无。不要写天堂、地狱、轮回。
+不要写外界现实（如废土、苏醒舱等）。150-200字。
+场景：{scene_name}。"""}], system="你是故事旁白。死亡结局，静谧、诚实、不粉饰。", temperature=0.9, max_tokens=512)
+        except:
+            return f"{self.player_name}的旅程结束了。在{scene_name}的某个角落，一切归于平静。"
 
 _session_lock = threading.Lock()
 session = GameSession()
