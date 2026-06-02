@@ -546,12 +546,18 @@ function prologueFinish(){
       el('#prologue-screen').style.display='none';
       hideMainTabs();
       el('#npc-panel').style.display='block';
+      el('#npc-list').style.display='block';
+      el('#evidence-list').style.display='none';
       el('#map-strip').style.display='flex';
       el('#story-log').style.display='block';
       el('#action-bar').style.display='';
+      el('#narrative-content').style.display='';
+      el('#ending-screen').style.display='none';
+      el('#ending-banner').style.display='none';
       if(s.scene_name)el('#scene-label').textContent=s.scene_name;
       addLog('narrative','序章结束。新的故事即将开始……');
-      renderNPCs(s.npcs);updateInfo(s);
+      if(s.npcs&&s.npcs.length) renderNPCs(s.npcs);
+      updateInfo(s);
       nextRound();
     });
   });
@@ -1128,7 +1134,17 @@ function testAPIConnectionFromSettings(){
 }
 
 // ====== UTILS ======
-function showLoading(on,text){var o=el('#loading-overlay');if(on){o.style.display='flex';el('#loading-text').textContent=text||'思考中...';el('#loading-progress').textContent=''}else{o.style.display='none'}}
+function showLoading(on,text){
+  var o=el('#loading-overlay');if(!o)return;
+  if(on){o.style.display='flex';el('#loading-text').textContent=text||'思考中...';el('#loading-progress').textContent=''}else{o.style.display='none'}
+}
+
+function addLog(type,text){
+  var l=el('#story-log');if(!l)return;
+  var d=document.createElement('div');
+  d.className='log-block log-'+type;d.textContent=text;
+  l.appendChild(d);l.scrollTop=l.scrollHeight;
+}
 function hideSettings(){switchTab('cards')}
 function newGameConfirm(){if(confirm('开始新游戏？当前进度将丢失。')){fetch('/api/new_game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene_id:'tianji_maze'})}).then(function(){location.reload()})}}
 function shutdownServer(){if(confirm('确认关闭服务端？')){document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0d1117;color:#c9d1d9;font-size:20px;flex-direction:column;font-family:Segoe UI,Microsoft YaHei,sans-serif;"><div style="font-size:48px;">&#9632;</div><div style="margin-top:20px;font-weight:600;">Astral 已关闭</div><div style="font-size:13px;color:#8b949e;margin-top:10px;">请关闭此窗口</div></div>';fetch('/api/shutdown')}}

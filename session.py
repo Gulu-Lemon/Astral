@@ -1108,17 +1108,13 @@ D. ...
                 self._broadcast_event(h)
 
     def _advance_time(self, minutes: int = 60):
-        """推进游戏时间（分钟级）。正常模式默认 +60 分钟/轮。只做纯时间推进，不走 ActionPlan 引擎。"""
-        old_minutes = self.world.time_minutes
-        self.world.time_minutes += minutes
-
+        """推进游戏时间。正常模式调用 _tick 驱动 ActionPlan。"""
+        self._tick(minutes)
         if self.world.time_minutes >= 1440:
             self.world.time_minutes -= 1440
             self.world.current_day += 1
             self._apply_daily_curse()
-
         self.world.current_time = _time_string(self.world.time_minutes)
-        self._check_time_broadcasts(old_minutes, self.world.time_minutes)
 
     def _tick(self, minutes: int = 1):
         """ActionPlan 驱动的逐分钟推进（用于 skip/sleep）。"""
