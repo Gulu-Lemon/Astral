@@ -135,6 +135,7 @@ class SaveManager:
         wd = data["world"]
         world.current_day = wd.get("current_day", 1)
         world.current_time = wd.get("current_time", "上午7点")
+        world.time_minutes = wd.get("time_minutes", 420)
         world.current_floor = wd.get("current_floor", 1)
         world.explored_rooms = set(wd.get("explored_rooms", []))
         world.npc_locations = dict(wd.get("npc_locations", {}))

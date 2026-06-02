@@ -235,51 +235,9 @@ class Arbiter:
     def _generate_evidence(
         self, actor_id: str, intent: Intent, success: bool,
         agent_states: dict[str, AgentState], world: WorldState,
-    ) -> list[Evidence]:
-        """生成证据 — 保证逻辑自洽但不保证唯一指向"""
-        loc = world.npc_locations.get(actor_id, "未知")
-        evidences: list[Evidence] = []
-
-        actor_state = agent_states.get(actor_id)
-        actor_name = CHARACTERS.get(actor_id, type('', (), {'name': actor_id})).name if actor_id in CHARACTERS else actor_id
-
-        if intent.intent_type == IntentType.ATTACK:
-            # 致命攻击 — 生成全套证据
-            try:
-                result = self._llm.chat_json(
-                    messages=[{
-                        "role": "user",
-                        "content": f"角色 {actor_name} 在 {loc} 对角色 {self._get_name(intent.target_id)} 发起攻击。"
-                                    f"行动成功？{'是' if success else '否'}。"
-                                    f"请生成2-4条现场证据的描述（每条一句话），这些证据可能指向{actor_name}或其他人。"
-                                    f"输出 JSON：{{\"items\": [{{\"description\": \"...\", \"points_to\": [\"No.XX\"]}}]}}"
-                    }],
-                    temperature=0.8, max_tokens=1024,
-                )
-                items = result if isinstance(result, list) else result.get("items", [])
-                if not isinstance(items, list):
-                    items = []
-                for item in items:
-                    if not isinstance(item, dict):
-                        continue
-                    evidences.append(Evidence(
-                        location=loc,
-                        description=item.get("description", ""),
-                        points_to=item.get("points_to", [actor_id]),
-                        reliability="中等" if success else "模糊",
-                    ))
-            except Exception:
-                pass
-
-        elif intent.intent_type == IntentType.SABOTAGE:
-            evidences.append(Evidence(
-                location=loc,
-                description=f"某些物品似乎被翻动过，可能有东西丢失。",
-                points_to=[actor_id],
-                reliability="模糊",
-            ))
-
-        return evidences
+    ) -> list:
+        """已废弃：证据生成移至审判阶段的 EvidenceItem 系统。保留方法签名以兼容调用方。"""
+        return []
 
     def _build_ruling_description(
         self, agent_id: str, intent: Intent, success: bool,
@@ -537,6 +495,48 @@ class Arbiter:
             return "YES" in resp.upper()
         except Exception:
             return False
+
+    def detect_plan_conflicts(self, agents: dict, world: "WorldState") -> list[dict]:
+        """检测当前 tick 中 NPC 计划之间的冲突点。
+        返回冲突列表：[{"type": "SOCIALIZE", "agents": [aid1, aid2], "location": "..."}, ...]
+        """
+        conflicts = []
+        loc_agents: dict[str, list[str]] = {}
+        for aid, agent in agents.items():
+            plan = getattr(agent.state, 'current_plan', None)
+            if plan is None or plan.is_completed:
+                continue
+            idx = plan.current_step_idx
+            if idx >= len(plan.steps):
+                continue
+            step = plan.steps[idx]
+            step_loc = step.target_location or world.npc_locations.get(aid, "")
+            loc_agents.setdefault(step_loc, []).append(aid)
+
+        for loc, aids in loc_agents.items():
+            if len(aids) >= 2:
+                for i in range(len(aids)):
+                    for j in range(i + 1, len(aids)):
+                        a1, a2 = aids[i], aids[j]
+                        p1 = agents[a1].state.current_plan
+                        p2 = agents[a2].state.current_plan
+                        if p1 is None or p2 is None:
+                            continue
+                        s1 = p1.steps[p1.current_step_idx] if p1.current_step_idx < len(p1.steps) else None
+                        s2 = p2.steps[p2.current_step_idx] if p2.current_step_idx < len(p2.steps) else None
+                        if s1 is None or s2 is None:
+                            continue
+                        t1 = s1.action_type.upper() if s1.action_type else ""
+                        t2 = s2.action_type.upper() if s2.action_type else ""
+                        if (t1 in ("CONFRONT", "STALK") and s1.target_id == a2) or \
+                           (t2 in ("CONFRONT", "STALK") and s2.target_id == a1):
+                            conflicts.append({"type": "confrontation", "agents": [a1, a2], "location": loc})
+                        elif t1 == "SOCIALIZE" and t2 == "SOCIALIZE":
+                            conflicts.append({"type": "social_opportunity", "agents": [a1, a2], "location": loc})
+                        elif t1 == "SOCIALIZE" and s1.target_id is None and a2 in aids:
+                            conflicts.append({"type": "social_opportunity", "agents": [a1, a2], "location": loc})
+
+        return conflicts
 
     def _get_name(self, agent_id: Optional[str]) -> str:
         if not agent_id:

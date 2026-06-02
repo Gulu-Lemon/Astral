@@ -342,6 +342,37 @@ body {
 
 @media(max-width:800px) { #npc-panel { width:150px; } }
 
+/* Panel tabs */
+.panel-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); flex-shrink:0; }
+.panel-tab { flex:1; padding:6px 4px; background:none; border:none; border-bottom:2px solid transparent; color:var(--text2); cursor:pointer; font-size:11px; margin-bottom:-1px; transition:all .15s; }
+.panel-tab:hover { color:var(--text); background:var(--bg3); }
+.panel-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.panel-tab span { font-size:9px; margin-left:2px; opacity:.6; }
+
+/* Evidence list */
+#evidence-list { padding:4px; overflow-y:auto; flex:1; }
+.evidence-item { padding:6px 8px; margin:2px 0; background:var(--bg); border:1px solid var(--border); border-radius:4px; font-size:11px; cursor:default; }
+.evidence-item .ev-name { font-weight:600; color:var(--text); margin-bottom:2px; }
+.evidence-item .ev-meta { font-size:10px; color:var(--text2); }
+.evidence-item.key { border-color:var(--accent); }
+
+/* Timer */
+#trial-timer { font-size:14px; color:var(--accent2); font-weight:600; min-width:60px; text-align:center; }
+#trial-timer.warning { color:var(--warn); animation:pulse 1s infinite; }
+#trial-timer.critical { color:var(--danger); animation:pulse .5s infinite; }
+
+/* Vote choices */
+#vote-choices { display:flex; flex-direction:column; gap:4px; }
+.vote-choice { padding:8px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:13px; transition:all .15s; display:flex; justify-content:space-between; }
+.vote-choice:hover { border-color:var(--accent); background:var(--bg3); }
+.vote-choice.selected { border-color:var(--accent2); background:rgba(126,231,135,.08); }
+.vote-choice .vc-name { font-weight:600; }
+.vote-choice .vc-id { font-size:10px; color:var(--text2); }
+
+/* Evidence input in action bar */
+#action-bar .ev-add-wrap { display:flex; gap:4px; align-items:center; margin-left:6px; border-left:1px solid var(--border); padding-left:8px; }
+#action-bar .ev-add-wrap input { width:120px; padding:4px 10px; background:var(--bg); border:1px solid var(--border); border-radius:14px; color:var(--text); font-size:11px; outline:none; }
+
 /* Debug panel */
 #debug-panel {
   position:fixed; bottom:0; left:0; right:0; z-index:300;

@@ -40,6 +40,25 @@ def _format_time(hour: int) -> str:
     elif hour < 12: return f"上午{hour}点"
     elif hour == 12: return "中午12点"
     else: return f"下午{hour-12}点"
+
+def _time_string(minutes: int) -> str:
+    """分钟数 → 显示时间字符串，如 420 → '上午7点'。"""
+    hour = minutes // 60
+    minute = minutes % 60
+    if hour < 6 or hour >= 22:
+        label = "晚上"
+    elif hour == 12:
+        label = "中午"
+    elif hour < 12:
+        label = "上午"
+    else:
+        label = "下午"
+        hour = hour - 12
+    if hour == 0:
+        hour = 12
+    if minute == 0:
+        return f"{label}{hour}点"
+    return f"{label}{hour}点{minute}分"
 class GameSession:
     def __init__(self, scene_id: str = ""):
         if not scene_id: scene_id = "tianji_maze"
@@ -937,6 +956,13 @@ D. ...
                 for intent in il:
                     if intent.intent_type == IntentType.ATTACK: intent.intent_type = IntentType.CONFRONT
 
+        # 剧情模式：禁止一切恶意行为
+        if self.world.difficulty == DifficultyMode.STORY:
+            for aid, il in intents.items():
+                for intent in il:
+                    if intent.intent_type in (IntentType.ATTACK, IntentType.TRAP, IntentType.SABOTAGE):
+                        intent.intent_type = IntentType.CONFRONT
+
         progress_queue.put({"type":"arbiter_start"})
         try:
             rulings = self.arbiter.process_round(intents, self.agent_states, self.world)
@@ -1058,15 +1084,105 @@ D. ...
         _scene_label = self.scenario.get("name", self.scene_id) if self.scenario else self.scene_id
         progress_queue.put({"type":"round_end","scene_name":_scene_label,"day":self.world.current_day,"time":self.world.current_time,"phase":self.world.phase.value,"location":self.player_location,"floor":self.world.current_floor,"in_trial":bool(self.world.active_trial and self.world.active_trial.active),"alive_count":len(self.world.alive_npcs),"rule_text":"","time_event":getattr(self,'xbrdcst',None),"npcs":_npc_list})
 
-    def _advance_time(self):
-        world = self.world
-        current = _parse_time(world.current_time)
-        if current is None: world.current_time = "上午7点"; return
-        hour = current + 1
-        if hour >= 24: hour = 0; world.current_day += 1; self._apply_daily_curse()
-        if hour >= 22: hour = 7; world.current_day += 1; self._apply_daily_curse(); world.current_time = "上午7点"; self.xbrdcst = "夜深了。所有人都回到自己的房间休息。新的一天开始。"; return
-        world.current_time = _format_time(hour)
-        if hour in (7,12,18,22): self._broadcast_event(hour)
+    def _tick(self, minutes: int = 1):
+        """推进游戏时间并执行所有 Agent 的 ActionPlan。"""
+        for _ in range(minutes):
+            old_minutes = self.world.time_minutes
+            self.world.time_minutes += 1
+            self.world.current_time = _time_string(self.world.time_minutes)
+            new_minutes = self.world.time_minutes
+
+            for aid, agent in self.agents.items():
+                st = self.agent_states.get(aid, DEAD_NPC)
+                if not st.alive:
+                    continue
+                plan = agent.ensure_plan(self.world)
+                if plan.is_completed or plan.current_step_idx >= len(plan.steps):
+                    continue
+
+                step = plan.steps[plan.current_step_idx]
+                elapsed = self.world.time_minutes - plan.step_start_time
+
+                if elapsed >= step.duration:
+                    self._execute_step(aid, step)
+                    plan.current_step_idx += 1
+                    plan.step_start_time = self.world.time_minutes
+
+                    if plan.current_step_idx >= len(plan.steps):
+                        plan.is_completed = True
+                        agent.plan(self.world, "当前计划完成，生成下一步")
+
+            self._check_time_broadcasts(old_minutes, new_minutes)
+
+    def _execute_step(self, aid: str, step):
+        """执行单个 ActionStep 的副作用。"""
+        from state import ActionStep as _AS
+        action = step.action_type.upper() if step.action_type else ""
+        if action in ("MOVE",) and step.target_location:
+            self.world.npc_locations[aid] = step.target_location
+        elif action in ("REST", "EAT") and step.target_location:
+            self.world.npc_locations[aid] = step.target_location
+
+    def _check_time_broadcasts(self, old_minutes: int, new_minutes: int):
+        """检查时间是否跨过广播点。"""
+        broadcast_hours = {7: "清晨广播", 12: "午餐广播", 18: "晚餐广播", 22: "夜铃"}
+        for h in broadcast_hours:
+            h_minutes = h * 60
+            if old_minutes < h_minutes <= new_minutes:
+                self._broadcast_event(h)
+
+    def _advance_time(self, minutes: int = 60):
+        """推进游戏时间（分钟级）。正常模式默认 +60 分钟/轮。"""
+        old_minutes = self.world.time_minutes
+        old_day = self.world.current_day
+
+        self._tick(minutes)
+
+        if self.world.time_minutes >= 1440:
+            self.world.time_minutes -= 1440
+            self.world.current_day += 1
+            self.world.current_time = _time_string(self.world.time_minutes)
+            self._apply_daily_curse()
+
+        if self.world.current_day > old_day:
+            self.xbrdcst = "夜深了。新的一天开始。"
+
+    def skip_time(self, target_hour: int) -> str:
+        """跳过时间到指定整点，仅在玩家位于自己房间时可用。
+        返回中断原因或完成摘要。"""
+        from state import IntentType as _IT
+        target_minutes = target_hour * 60
+        if target_minutes <= self.world.time_minutes:
+            target_minutes += 1440
+        total = target_minutes - self.world.time_minutes
+
+        for _ in range(total // 10):
+            before = self.world.time_minutes
+            self._tick(10)
+
+            if self.world.time_minutes >= target_minutes:
+                self.world.time_minutes = target_minutes
+                self.world.current_time = _time_string(self.world.time_minutes)
+                break
+
+            if getattr(self, 'xbrdcst', None):
+                msg = self.xbrdcst
+                self.xbrdcst = None
+                return f"skip_interrupted: {msg}"
+
+        self.world.current_time = _time_string(self.world.time_minutes)
+        return f"skipped_to: {_time_string(target_minutes)}"
+
+    def sleep_until_morning(self) -> str:
+        """睡觉到次日上午 7:00，只在房间内可用。不因敲门中断。"""
+        next_7 = 7 * 60
+        current = self.world.time_minutes
+        if current >= next_7:
+            self.world.current_day += 1
+        self.world.time_minutes = next_7
+        self.world.current_time = _time_string(next_7)
+        self._apply_daily_curse()
+        return f"睡到第{self.world.current_day}天早上7点"
 
     def _broadcast_event(self, hour: int):
         events = {7:"清晨的阳光洒进房间。新的一天开始了。",12:"正午时分。该吃午饭了——人们向用餐区聚集。",18:"夕阳西下。晚餐时间到了。",22:"夜色深沉。多数人感到困倦，准备回房间休息。"}
@@ -1263,15 +1379,63 @@ D. ...
             return self.llm.chat(messages=[{"role":"user","content":f"玩家调查：{action}。受害者：{trial.victim_id}。描述发现的线索，80-120字。"}], system="你是故事旁白。冷静、精确。", temperature=0.9, max_tokens=512)
         except: return "调查未发现特别的线索。"
 
+    def add_evidence(self, item_desc: str) -> dict:
+        """添加证物到当前审判中，含 LLM 模型校验。"""
+        from state import EvidenceItem
+        trial = self.world.active_trial
+        if not trial or not trial.active:
+            return {"ok": False, "error": "没有进行中的审判。"}
+
+        loc = self.player_location
+        room_items = self.world.room_item_state.get(loc, {})
+        items_desc = "、".join(f"{k}" for k, v in room_items.items() if v == "存在") or "无"
+
+        # LLM 校验：物品是否存在、能否取走
+        try:
+            check = self.llm.chat_json(messages=[{"role":"user","content":f"""玩家在【{loc}】想将以下物品作为证物收起来：「{item_desc}」
+
+当前房间存在的物品：{items_desc}
+玩家背包：{'、'.join(self.world.player_inventory) or '无'}
+
+判断：
+1. 这个物品在当前场景中是否存在？（回答 yes/no）
+2. 它的实际名称是什么？（如"匕首"、"茶杯"、"纸条"）  
+3. 玩家能否取走它？（合理吗？有阻碍吗？回答 yes/no）
+4. 如果不存在或不能取走，给出简短理由。
+
+输出 JSON：{{"exists":true/false,"actual_name":"...","can_take":true/false,"reason":""}}"""}], system="你是场景物品校验器。严格、精确。只输出 JSON。", temperature=0.3, max_tokens=512)
+        except Exception:
+            check = {"exists": True, "actual_name": item_desc, "can_take": True, "reason": ""}
+
+        if not check.get("exists", False):
+            return {"ok": False, "error": check.get("reason", "这里似乎没有那样的物品。")}
+        if not check.get("can_take", True):
+            return {"ok": False, "error": check.get("reason", "这件物品无法取走。")}
+
+        name = check.get("actual_name", item_desc)
+        ev = EvidenceItem(
+            name=name,
+            description=f"{name}——{check.get('reason', item_desc)}",
+            found_by="player",
+            location=loc,
+            found_time_tick=self.world.global_tick,
+        )
+        trial.case_evidence_items.append(ev)
+
+        # 从房间物品中移除
+        if name in room_items:
+            room_items[name] = "已取走（证物）"
+
+        return {"ok": True, "evidence": ev.to_dict(),
+                "narrative": f"你将{name}小心地收好，作为证物保存了起来。"}
+
     def trial_proceed(self) -> dict:
         trial = self.world.active_trial
         if not trial or not trial.active: return {"ok":False,"error":"没有审判","phase":""}
         trial.turn_count += 1
         if trial.phase == "investigation": trial.phase = "court_statement"; return {"ok":True,"phase":trial.phase,"text":"搜查结束。魔女审判开始。陈述阶段：每人依次发言。"}
         elif trial.phase == "court_statement": trial.phase = "court_debate"; return {"ok":True,"phase":trial.phase,"text":"辩论阶段。可以质疑证词。"}
-        elif trial.phase == "court_debate": trial.phase = "closing"; return {"ok":True,"phase":trial.phase,"text":"辩论结束。如掌握足够线索可进行论告。"}
-        elif trial.phase == "closing":
-            if not trial.player_has_argued: return {"ok":False,"error":"请先进行论告","phase":trial.phase}
+        elif trial.phase == "court_debate":
             trial.phase = "voting"
             votes = self._trial_vote(); trial.votes = votes
             from collections import Counter
@@ -1309,7 +1473,224 @@ D. ...
         trial.active = False
         return text
 
-# === Module-level session ===
+    def generate_statement(self) -> dict:
+        """生成陈述阶段的开场白。"""
+        trial = self.world.active_trial
+        if not trial or trial.phase != "court_statement":
+            return {"ok": False, "error": "不在陈述阶段"}
+
+        # 找调查发现最多的 NPC
+        best_npc = None
+        best_count = 0
+        for aid, results in trial.investigation_notes.items():
+            if len(results) > best_count:
+                best_count = len(results)
+                best_npc = aid
+        if best_npc is None:
+            best_npc = trial.victim_id
+            while best_npc == trial.victim_id:
+                from random import choice
+                best_npc = choice(list(self.world.alive_npcs))
+
+        npc = self.agents.get(best_npc)
+        npc_name = npc.profile.name if npc else "一名少女"
+        findings = "；".join(trial.investigation_notes.get(best_npc, ["没有特别的发现"]))
+
+        try:
+            text = self.llm.chat(messages=[{"role":"user","content":f"""魔女审判陈述阶段。
+被害者：{self.agent_states[trial.victim_id].name if trial.victim_id in self.agent_states else trial.victim_id}
+
+现在请{npc_name}进行开场陈述。她在搜查中发现了：{findings}
+
+请以她的性格和语气，生成一段 100-200 字的陈述。用第三人称叙述。"""}], system="你是故事旁白。", temperature=0.9, max_tokens=512)
+        except Exception:
+            text = f"{npc_name}站了出来，开始陈述搜查中的发现。"
+
+        return {"ok": True, "phase": "court_statement", "text": text, "speaker": npc_name}
+
+    def generate_debate_context(self) -> dict:
+        """构建辩论阶段的上下文数据，供 SSE 流使用。"""
+        trial = self.world.active_trial
+        if not trial or trial.phase != "court_debate":
+            return {"ok": False, "error": "不在辩论阶段"}
+
+        victim_name = self.agent_states[trial.victim_id].name if trial.victim_id in self.agent_states else trial.victim_id
+
+        evidence_lines = []
+        for ev in trial.case_evidence_items:
+            finder_name = "玩家"
+            if ev.found_by != "player" and ev.found_by in self.agents:
+                finder_name = self.agents[ev.found_by].profile.name
+            evidence_lines.append(f"- {ev.name}（{ev.location}，发现者：{finder_name}）")
+        evidence_str = "\n".join(evidence_lines) if evidence_lines else "（尚无证物）"
+
+        notes_lines = []
+        for aid, results in trial.investigation_notes.items():
+            if aid in self.agents:
+                name = self.agents[aid].profile.name
+                for r in results:
+                    notes_lines.append(f"- {name}({aid}): {r}")
+        notes_str = "\n".join(notes_lines[-10:]) if notes_lines else "（无）"
+
+        history_str = ""
+        for s in trial.statements[-5:]:
+            role = s.get("role", "?")
+            content = s.get("content", "")
+            history_str += f"[{role}]: {content}\n"
+
+        npc_opinions = self._compute_npc_opinions(trial)
+
+        # 存活 NPC 列表
+        npc_list = []
+        for aid in sorted(self.world.alive_npcs):
+            if aid == trial.victim_id:
+                continue
+            name = self.agents[aid].profile.name if aid in self.agents else aid
+            npc_list.append(f"{name}({aid})")
+
+        context = {
+            "victim_name": victim_name,
+            "victim_id": trial.victim_id,
+            "location": self.world.npc_locations.get(trial.victim_id, ""),
+            "turn_count": trial.turn_count,
+            "evidence_str": evidence_str,
+            "notes_str": notes_str,
+            "history_str": history_str,
+            "npc_opinions": npc_opinions,
+            "npc_list": npc_list,
+            "timer_remaining": max(0, 60 - trial.timer_elapsed),
+        }
+        return {"ok": True, "phase": "court_debate", "context": context}
+
+    def stream_debate(self, last_player_action: dict = None):
+        """SSE 生成器：生成辩论叙事并流式推送。"""
+        trial = self.world.active_trial
+        if not trial or trial.phase != "court_debate":
+            yield f"event: error\ndata: {{\"error\":\"不在辩论阶段\"}}\n\n"
+            return
+
+        ctx = self.generate_debate_context()
+        if not ctx["ok"]:
+            yield f"event: error\ndata: {{\"error\":\"{ctx.get('error')}\"}}\n\n"
+            return
+        c = ctx["context"]
+
+        player_action_desc = ""
+        if last_player_action:
+            pa = last_player_action
+            pa_type = pa.get("type", "")
+            target = pa.get("target", "")
+            argument = pa.get("argument", "")
+            if pa_type == "challenge" and target:
+                target_name = self.agents[target].profile.name if target in self.agents else target
+                player_action_desc = f"玩家刚刚质疑了{target_name}的证词。"
+            elif pa_type == "present_evidence" and target:
+                for ev in trial.case_evidence_items:
+                    if ev.item_id == target:
+                        player_action_desc = f"玩家刚刚出示了证物「{ev.name}」。"
+                        break
+            elif pa_type == "reason":
+                player_action_desc = f"玩家提出了自己的推理：{argument}"
+            if not player_action_desc:
+                player_action_desc = "玩家在思考。"
+
+        prompt = f"""你正在主持一场魔女审判的辩论阶段。
+
+【背景】
+- 被害者：{c['victim_name']} ({c['victim_id']})
+- 辩论轮次：第 {c['turn_count']} 轮
+- 存活角色：{', '.join(c['npc_list'])}
+
+【证物清单】
+{c['evidence_str']}
+
+【调查记录】
+{c['notes_str']}
+
+【辩论历史】
+{c['history_str'] or '（首次辩论）'}
+
+【玩家行动】
+{player_action_desc}
+
+任务：生成一段 2-3 个 NPC 交替发言的辩论叙事（200-400 字）。
+- NPC 发言必须引用具体证物名称
+- 对话要有来有回（质疑→反驳→补充）
+- 发言风格符合角色性格
+
+输出 JSON：{{"narrative":"...","elapsed_minutes":8,"consensus_reached":false,"consensus_target":null,"consensus_ratio":0,"options":[{{"label":"...","type":"challenge/present_evidence/reason/wait","target":"...","room":null}}]}}"""
+
+        try:
+            for chunk_text in self.gm_llm.chat_stream(
+                messages=[{"role": "user", "content": prompt}],
+                system=self._pgm(),
+                temperature=0.9,
+                max_tokens=2048,
+            ):
+                yield f"event: narrative_chunk\ndata: {json.dumps({'text': chunk_text}, ensure_ascii=False)}\n\n"
+        except Exception:
+            # Fallback: non-streaming
+            try:
+                result = self.gm_llm.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    system=self._pgm(),
+                    temperature=0.9,
+                    max_tokens=2048,
+                )
+                yield f"event: narrative_chunk\ndata: {json.dumps({'text': result}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                yield f"event: error\ndata: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+                return
+
+    def process_debate_option(self, choice: dict) -> dict:
+        """处理玩家在辩论中的选择。"""
+        trial = self.world.active_trial
+        if not trial or trial.phase != "court_debate":
+            return {"ok": False, "error": "不在辩论阶段"}
+
+        trial.turn_count += 1
+        choice_type = choice.get("type", "")
+
+        if choice_type == "suggest_vote":
+            trial.phase = "voting"
+            return {"ok": True, "phase": "voting", "text": "你提出了进入投票。大家开始投票。"}
+
+        # 记录玩家行动
+        trial.statements.append({
+            "role": "player",
+            "content": f"[{choice_type}] {choice.get('argument', choice.get('label', ''))}",
+            "type": choice_type,
+            "target": choice.get("target"),
+        })
+
+        return {"ok": True, "phase": "court_debate", "ready_for_stream": True}
+
+    def _compute_npc_opinions(self, trial) -> dict:
+        """计算各 NPC 的怀疑倾向。"""
+        opinions = {}
+        for aid in self.world.alive_npcs:
+            if aid == trial.victim_id:
+                continue
+            st = self.agent_states.get(aid)
+            if st is None:
+                continue
+            top_suspect = None
+            top_weight = 0
+            for oid in self.world.alive_npcs:
+                if oid == aid or oid == trial.victim_id:
+                    continue
+                weight = st.suspicion_map.get(oid, 0) * 0.6
+                aff = st.affection_map.get(oid, 50)
+                if aff < 35:
+                    weight += (35 - aff) / 100 * 0.25
+                for ev in trial.case_evidence_items:
+                    if oid in ev.description or oid in ev.name:
+                        weight += 0.15
+                if weight > top_weight:
+                    top_weight = weight
+                    top_suspect = oid
+            opinions[aid] = {"top_suspect": top_suspect, "confidence": round(top_weight, 2)}
+        return opinions
 _session_lock = threading.Lock()
 session = GameSession()
 scenarios.load("tianji_maze"); scenarios.load("cloud_holiday"); scenarios.load("snow_train")

@@ -515,6 +515,8 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
         return ""
 
     def _npc_label(self, agent_id):
+        if agent_id == "player":
+            return f"{self.player_name or '玩家'}[player]"
         cp = self._characters.get(agent_id) if self._characters else None
         return f"{cp.name}[{agent_id}]" if cp else agent_id
 

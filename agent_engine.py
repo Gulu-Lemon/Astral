@@ -4,8 +4,17 @@ NPC Agent 引擎 — 每个 NPC 的决策与行为生成
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
-from state import AgentState, WorldState, Event, Intent, IntentType, GamePhase, AffectionEntry
+from state import (AgentState, WorldState, Event, Intent, IntentType, GamePhase,
+                   AffectionEntry, ActionStep, ActionPlan)
 from characters import CharacterProfile
+
+def _display_id(aid: str) -> str:
+    """LLM 提示词中：player → No.13，抹除玩家身份标识。"""
+    return "No.13" if aid == "player" else aid
+
+def _reverse_id(aid: str) -> str:
+    """LLM 输出中：No.13 → player，反向翻译回引擎层。"""
+    return "player" if aid == "No.13" else aid
 
 
 class NPCAgent:
@@ -40,7 +49,7 @@ class NPCAgent:
                     visible_dialogues.append(f"{actor_name}：「{evt.dialogue_snapshot}」")
 
         nearby_npcs = [
-            aid for aid, aloc in world.npc_locations.items()
+            _display_id(aid) for aid, aloc in world.npc_locations.items()
             if aloc == loc and aid != self.agent_id
         ]
 
@@ -94,6 +103,7 @@ class NPCAgent:
             its = str(act.get("t", act.get("intent_type", "rest"))).lower()
             it = _parse_intent_type(its)
             tid = act.get("tid") or act.get("target_id") or None
+            tid = _reverse_id(tid) if tid else None  # No.13 → player
             tloc = act.get("loc") or act.get("target_location") or None
             reason = act.get("r", act.get("reasoning", ""))
             risk = act.get("risk", "") or ""
@@ -122,24 +132,161 @@ class NPCAgent:
             intent_list = [Intent(agent_id=self.agent_id, intent_type=IntentType.REST, reasoning="")]
         return intent_list
 
-    def _build_decision_prompt(self, p: "Perception", world: WorldState) -> str:
+    def plan(self, world: WorldState, reason: str = "") -> Optional[ActionPlan]:
+        """生成多步行动计划（替代 decide 的调度式规划）。"""
+        perception = self.perceive(world)
+        prompt = self._build_plan_prompt(perception, world, reason)
+
+        try:
+            result = self._llm.chat_json(
+                messages=[{"role": "user", "content": prompt}],
+                system=self.profile.system_prompt,
+                temperature=0.9,
+                max_tokens=2048,
+            )
+        except Exception:
+            import logging
+            logging.getLogger("astral.agents").warning(
+                f"Agent {self.agent_id} plan LLM 错误，生成默认计划")
+            result = None
+
+        steps_raw = result.get("steps", []) if result else []
+        steps = []
+        for s in steps_raw:
+            if not isinstance(s, dict):
+                continue
+            steps.append(ActionStep(
+                action_type=s.get("action_type", "").upper(),
+                target_location=s.get("target_location") or None,
+                target_id=s.get("target_id") or None,
+                duration=max(1, int(s.get("duration", 30))),
+                description=s.get("description", ""),
+            ))
+
+        if not steps:
+            loc = world.npc_locations.get(self.agent_id, "")
+            steps = [ActionStep(
+                action_type="REST",
+                target_location=loc,
+                duration=60,
+                description=f"{self.profile.name}待在原地",
+            )]
+
+        plan = ActionPlan(
+            agent_id=self.agent_id,
+            steps=steps,
+            step_start_time=world.time_minutes,
+            created_at=world.time_minutes,
+        )
+        self.state.current_plan = plan
+        return plan
+
+    def ensure_plan(self, world: WorldState, reason: str = "") -> ActionPlan:
+        """确保存在有效的 ActionPlan，不存在则调用 plan() 生成。"""
+        existing = self.state.current_plan
+        if existing is None or existing.is_completed:
+            return self.plan(world, reason)
+        return existing
+
+    def _build_plan_prompt(self, p: "Perception", world: WorldState, reason: str = "") -> str:
         nearby_names = []
         for aid in p.nearby_npcs:
-            cp = self._all_chars.get(aid)
+            cp = self._all_chars.get(_reverse_id(aid))
             if cp:
                 nearby_names.append(f"{cp.name}({aid})")
+            elif aid == "No.13" and self._player_name:
+                nearby_names.append(f"{self._player_name}({aid})")
 
         aff_parts = []
         for k, v in p.affection_snapshot.items():
+            display_k = _display_id(k)
             cp = self._all_chars.get(k)
-            name = cp.name if cp else k
+            if cp:
+                name = cp.name
+            elif k == "player" and self._player_name:
+                name = self._player_name
+            else:
+                name = display_k
+            hint = _aff_hint(v)
+            aff_parts.append(f"{name}({display_k}):好感{v}({hint})")
+        aff_str = "；".join(aff_parts) if aff_parts else "无"
+
+        phase_info = ""
+        if world.active_trial and world.active_trial.active:
+            phase_info = (
+                f"\n【审判中】当前处于审判的 {world.active_trial.phase} 阶段。"
+                f"被害者：{world.active_trial.victim_id}。"
+                "可用行动：search(搜查证据), interrogate(询问他人), guard(看守现场), watch(观察他人)。"
+            )
+
+        reason_line = f"\n【计划原因】{reason}" if reason else ""
+        loc = world.npc_locations.get(self.agent_id, "")
+        room_items = world.room_item_state.get(loc, {})
+        item_desc = "、".join(k for k, v in room_items.items() if v == "存在") or "无"
+
+        hour = world.time_minutes // 60
+        time_hint = (
+            "清晨，该起床吃早饭了" if 6 <= hour < 9 else
+            "上午，适合活动" if 9 <= hour < 12 else
+            "中午，该吃午饭了" if 12 <= hour < 14 else
+            "下午，继续活动" if 14 <= hour < 18 else
+            "傍晚，该吃晚饭了" if 18 <= hour < 20 else
+            "晚上，该准备休息了" if 20 <= hour < 22 else
+            "深夜，大多数人在睡觉"
+        )
+
+        return f"""你是 {self.profile.name}。请制定你接下来 1-2 小时的行动计划。
+你的性格：{self.profile.personality}
+{phase_info}{reason_line}
+
+【当前状况】
+- 位置：{loc}
+- 时间：第{world.current_day}天 {world.current_time}（{hour}:00前后，{time_hint}）
+- 情绪：{p.emotional_state}
+- 附近：{', '.join(nearby_names) if nearby_names else '无人'}
+- 房间物品：{item_desc}
+- 好感关系：{aff_str}
+
+【行动类型】
+MOVE（移动去某房间）、EAT（吃饭）、REST（休息）、SOCIALIZE（找人社交）、
+CONFRONT（对峙/争吵）、ISOLATE（独处）、STALK（跟踪）、EXPLORE（探索）
+
+【规则】
+1. 根据当前时间决定该做什么——该吃饭时去餐厅，该睡觉时回房间
+2. 考虑好感度：想见喜欢的人，想躲讨厌的人
+3. 每步 5-60 分钟，总计覆盖 1-2 小时
+4. 生成 3-5 个步骤，MOVE 步骤必须指定目标房间
+5. duration 是真实时间消耗估算（分钟）
+
+输出 JSON：
+{{"steps":[{{"action_type":"MOVE","target_location":"宴会厅","target_id":null,"duration":10,"description":"前往宴会厅吃早饭"}},{{"action_type":"EAT","target_location":"宴会厅","target_id":null,"duration":45,"description":"在宴会厅吃早饭"}}]}}"""
+
+    def _build_decision_prompt(self, p: "Perception", world: WorldState) -> str:
+        nearby_names = []
+        for aid in p.nearby_npcs:
+            cp = self._all_chars.get(_reverse_id(aid))
+            if cp:
+                nearby_names.append(f"{cp.name}({aid})")
+            elif aid == "No.13" and self._player_name:
+                nearby_names.append(f"{self._player_name}({aid})")
+
+        aff_parts = []
+        for k, v in p.affection_snapshot.items():
+            display_k = _display_id(k)
+            cp = self._all_chars.get(k)
+            if cp:
+                name = cp.name
+            elif k == "player" and self._player_name:
+                name = self._player_name
+            else:
+                name = display_k
             hint = _aff_hint(v)
             if v >= 65: action_hint = "信任亲近，倾向主动接近、分享信息"
             elif v >= 50: action_hint = "友善，愿意交谈互动"
             elif v >= 35: action_hint = "一般，保持基本社交"
             elif v >= 20: action_hint = "冷淡警惕，倾向回避或暗中观察"
             else: action_hint = "敌意不信任，可能对峙或密谋报复"
-            aff_parts.append(f"{name}({k}):{v}({hint}，{action_hint})")
+            aff_parts.append(f"{name}({display_k}):{v}({hint}，{action_hint})")
         aff_str = "；".join(aff_parts) if aff_parts else "无"
 
         allowed_intents = self._allowed_intents(world.phase)
@@ -288,6 +435,8 @@ def _parse_intent_type(raw: str) -> IntentType:
         "confront": IntentType.CONFRONT, "isolate": IntentType.ISOLATE,
         "stalk": IntentType.STALK, "sabotage": IntentType.SABOTAGE,
         "attack": IntentType.ATTACK, "trap": IntentType.TRAP, "defend": IntentType.DEFEND,
+        "search": IntentType.SEARCH, "interrogate": IntentType.INTERROGATE,
+        "guard": IntentType.GUARD, "watch": IntentType.WATCH,
     }
     return mapping.get(raw, IntentType.REST)
 

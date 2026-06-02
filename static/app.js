@@ -39,6 +39,14 @@ document.addEventListener('DOMContentLoaded',function(){
   bind('#btn-close-save','click',function(){el('#save-panel').style.display='none'});
   bind('.panel-overlay','click',function(){el('#save-panel').style.display='none'});
   bind('#trial-proceed-btn','click',trialProceed);
+  bind('#trial-vote-btn','click',trialVote);
+  bind('#btn-vote-submit','click',submitVote);
+  bind('#btn-vote-cancel','click',function(){el('#vote-panel').style.display='none'});
+  document.querySelectorAll('.panel-tab').forEach(function(b){b.addEventListener('click',function(){switchPanelTab(b.dataset.panel)})});
+  bind('#btn-skip','click',doSkipTime);
+  bind('#btn-sleep','click',doSleep);
+  bind('#ev-add-btn','click',addEvidenceItem);
+  bind('#ev-input','keydown',function(e){if(e.key==='Enter')addEvidenceItem()});
   bind('#prologue-btn','click',prologueSubmit);
   bind('#prologue-field','keydown',function(e){if(e.key==='Enter')prologueSubmit()});
   document.querySelectorAll('.choice-btn').forEach(function(b){b.addEventListener('click',function(){prologueChoose(b.dataset.mode)})});
@@ -597,7 +605,16 @@ function nextRound(keepLog){
     renderOptions(d.options);
   });
   es.addEventListener('round_end',function(e){
-    try{var d=JSON.parse(e.data);updateInfo(d);if(S.debug)renderDebugRulings(d);}catch(ex){}
+    try{
+      var d=JSON.parse(e.data);
+      updateInfo(d);
+      if(S.debug)renderDebugRulings(d);
+      if(d.in_trial){
+        fetch('/api/trial/state').then(function(r){return r.json()}).then(function(ts){
+          if(ts.active){showTrialBanner(ts.victim_name||'?',ts.phase);_trialRemaining=ts.timer_remaining||60;}
+        });
+      }
+    }catch(ex){}
     es.close();
   });
   es.addEventListener('npc_approaches',function(e){
@@ -618,6 +635,18 @@ function clearLog(){}
 
 function renderOptions(options){
   el('#action-bar').innerHTML='';el('#action-bar').style.display='';
+  
+  // 审判调查阶段：添加证物输入
+  fetch('/api/trial/state').then(function(r){return r.json()}).then(function(ts){
+    if(ts.active&&ts.phase==='investigation'){
+      var evWrap=document.createElement('span');
+      evWrap.className='ev-add-wrap';
+      evWrap.innerHTML='<input id="ev-input" placeholder="添加证物..." maxlength="100"><button id="ev-add-btn">保存</button>';
+      el('#action-bar').appendChild(evWrap);
+      bind('#ev-add-btn','click',addEvidenceItem);
+      bind('#ev-input','keydown',function(e){if(e.key==='Enter')addEvidenceItem()});
+    }
+  });
   if(!options||!options.length){
     ['继续观察周围','与附近的人交谈','探索这个区域','（自定义行动）'].forEach(function(l,i){
       var btn=document.createElement('button');btn.className='action-btn';
@@ -662,6 +691,10 @@ function updateInfo(s){
   if(s.floor)el('#floor-badge').textContent='L'+s.floor;
   if(s.npcs)renderNPCs(s.npcs);
   if(s.scene_name)el('#scene-label').textContent=s.scene_name;
+  // Show skip/sleep when game is active
+  var inGame=!S.inPrologue&&s.day;
+  el('#btn-skip').style.display=inGame?'inline-block':'none';
+  el('#btn-sleep').style.display=inGame?'inline-block':'none';
 }
 
 // ====== DIALOGUE ======
@@ -718,14 +751,183 @@ function doAction(data){
 
 // ====== TRIAL ======
 function showTrialBanner(victim,phase){
-  el('#trial-banner').style.display='block';
+  el('#trial-banner').style.display='flex';
   el('#trial-info').textContent='魔女审判 — 被害者：'+victim;
+  highlightTrialPhase(phase);
+  if(phase==='investigation'||phase==='court_debate'){
+    startTrialTimer(phase);
+  }
+  renderEvidencePanel();
+  el('#panel-tab-ev').style.display='inline-block';
 }
-function trialProceed(){
-  fetch('/api/trial/proceed',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
-    if(d.ok){addLog('trial',d.text||d.phase);if(d.phase==='execution'){addLog('execution',d.text)}}
-    else alert(d.error||'推进失败');
+
+function hideTrialBanner(){
+  el('#trial-banner').style.display='none';
+  stopTrialTimer();
+}
+
+function highlightTrialPhase(phase){
+  document.querySelectorAll('.trial-phase-tag').forEach(function(t){
+    t.classList.toggle('active',t.dataset.phase===phase);
   });
+}
+
+var _trialTimer=null;
+var _trialRemaining=0;
+
+function startTrialTimer(phase){
+  stopTrialTimer();
+  el('#trial-timer').style.display='inline';
+  _trialTimer=setInterval(function(){
+    if(_trialRemaining<=0){
+      el('#trial-timer').textContent='0:00';
+      el('#trial-timer').className='critical';
+      return;
+    }
+    _trialRemaining--;
+    var m=Math.floor(_trialRemaining/60);
+    var s=_trialRemaining%60;
+    el('#trial-timer').textContent=m+':'+(s<10?'0':'')+s;
+    if(_trialRemaining<=60) el('#trial-timer').className='warning';
+    if(_trialRemaining<=15) el('#trial-timer').className='critical';
+  },1000);
+}
+
+function stopTrialTimer(){
+  if(_trialTimer){clearInterval(_trialTimer);_trialTimer=null;}
+  el('#trial-timer').style.display='none';
+  el('#trial-timer').className='';
+}
+
+function trialProceed(){
+  showLoading(true,'推进审判...');
+  fetch('/api/trial/proceed',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    showLoading(false);
+    if(!d.ok){alert(d.error||'推进失败');return;}
+    if(d.phase==='court_statement'){
+      addLog('trial',d.text||'');
+      highlightTrialPhase('court_statement');
+    }else if(d.phase==='court_debate'){
+      addLog('trial',d.text||'');
+      highlightTrialPhase('court_debate');
+      if(d.stream_url) startDebateStream(d.stream_url);
+    }else if(d.phase==='execution'){
+      addLog('execution',d.text||'');
+      hideTrialBanner();
+      nextRound();
+    }
+  }).catch(function(){showLoading(false);});
+}
+
+function startDebateStream(url){
+  showLoading(true,'辩论中...');
+  var es=new EventSource(url);
+  var _debateDiv=null;
+  es.addEventListener('narrative_chunk',function(e){
+    showLoading(false);
+    try{
+      var d=JSON.parse(e.data);
+      if(!_debateDiv){
+        _debateDiv=document.createElement('div');
+        _debateDiv.className='log-block log-narrative';
+        _debateDiv.style.whiteSpace='pre-wrap';
+        el('#story-log').appendChild(_debateDiv);
+      }
+      _debateDiv.textContent+=d.text;
+      el('#story-log').scrollTop=el('#story-log').scrollHeight;
+    }catch(ex){}
+  });
+  es.addEventListener('error',function(e){
+    showLoading(false);
+    try{es.close()}catch(ex){}
+    el('#trial-proceed-btn').disabled=false;
+  });
+  es.onmessage=function(e){
+    try{es.close()}catch(ex){}
+    // SSE done - check results via state
+    updateTrialState();
+  };
+}
+
+function updateTrialState(){
+  fetch('/api/trial/state').then(function(r){return r.json()}).then(function(d){
+    if(!d.active){hideTrialBanner();return;}
+    highlightTrialPhase(d.phase);
+    if(d.timer_remaining>0) _trialRemaining=d.timer_remaining;
+    renderEvidencePanel();
+  });
+}
+
+function trialVote(){
+  fetch('/api/trial/state').then(function(r){return r.json()}).then(function(d){
+    if(!d.active)return;
+    fetch('/api/state').then(function(r2){return r2.json()}).then(function(s){
+      var npcs=s.npcs||[];
+      var html='';
+      npcs.forEach(function(n){
+        if(!n.alive||n.agent_id===d.victim_id)return;
+        html+='<div class="vote-choice" data-aid="'+n.agent_id+'" onclick="selectVoteTarget(this)"><span class="vc-name">'+escHtml(n.name||n.agent_id)+'</span><span class="vc-id">'+n.agent_id+'</span></div>';
+      });
+      el('#vote-choices').innerHTML=html;
+      el('#vote-panel').style.display='block';
+      S._voteTarget=null;
+    });
+  });
+}
+
+function selectVoteTarget(el2){
+  document.querySelectorAll('.vote-choice').forEach(function(c){c.classList.remove('selected')});
+  el2.classList.add('selected');
+  S._voteTarget=el2.dataset.aid;
+}
+
+function submitVote(){
+  if(!S._voteTarget){alert('请选择嫌疑犯');return;}
+  fetch('/api/trial/vote',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({vote_for:S._voteTarget,reason:el('#vote-reason').value.trim()})
+  }).then(function(r){return r.json()}).then(function(d){
+    el('#vote-panel').style.display='none';
+    if(d.ok){
+      addLog('trial','投票结果：'+d.text);
+      if(d.phase==='execution'){addLog('execution',d.text||'');hideTrialBanner();nextRound();}
+    }
+  });
+}
+
+// ====== EVIDENCE ======
+var S_evidenceTab='npc';
+function switchPanelTab(tab){
+  S_evidenceTab=tab;
+  document.querySelectorAll('.panel-tab').forEach(function(b){b.classList.toggle('active',b.dataset.panel===tab)});
+  el('#npc-list').style.display=tab==='npc'?'block':'none';
+  el('#evidence-list').style.display=tab==='evidence'?'block':'none';
+  if(tab==='evidence') renderEvidencePanel();
+}
+
+function renderEvidencePanel(){
+  fetch('/api/trial/evidence').then(function(r){return r.json()}).then(function(d){
+    var list=el('#evidence-list');
+    var items=d.evidence||[];
+    el('#ev-count').textContent='('+items.length+')';
+    if(!items.length){list.innerHTML='<div style="font-size:11px;color:var(--text2);padding:8px;">（暂无证物）</div>';return;}
+    list.innerHTML=items.map(function(e){
+      var cls=e.is_key_evidence?' key':'';
+      return '<div class="evidence-item'+cls+'"><div class="ev-name">'+escHtml(e.name)+'</div><div class="ev-meta">'+escHtml(e.location)+' &middot; '+escHtml(e.found_by||'未知')+'</div></div>';
+    }).join('');
+  });
+}
+
+function addEvidenceItem(){
+  var desc=el('#ev-input').value.trim();
+  if(!desc)return;
+  el('#ev-input').value='';
+  fetch('/api/trial/evidence/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:desc})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.ok){
+        addLog('system','证物：'+d.narrative);
+        renderEvidencePanel();
+      }else{alert(d.error||'添加证物失败')}
+    });
 }
 
 // ====== MAP ======
@@ -907,3 +1109,23 @@ function newGameConfirm(){if(confirm('开始新游戏？当前进度将丢失。
 function shutdownServer(){if(confirm('确认关闭服务端？')){document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0d1117;color:#c9d1d9;font-size:20px;flex-direction:column;font-family:Segoe UI,Microsoft YaHei,sans-serif;"><div style="font-size:48px;">&#9632;</div><div style="margin-top:20px;font-weight:600;">Astral 已关闭</div><div style="font-size:13px;color:#8b949e;margin-top:10px;">请关闭此窗口</div></div>';fetch('/api/shutdown')}}
 function toggleDebugPanel(){var p=el('#debug-panel');var b=p.querySelector('.debug-body');b.style.display=b.style.display==='none'?'block':'none'}
 function renderDebugRulings(d){if(!d||!d.rulings)return;el('#debug-rulings').innerHTML=d.rulings.map(function(r){return '<div>'+r[0]+' '+r[1]+'</div>'}).join('')}
+
+// ====== SKIP / SLEEP ======
+function doSkipTime(){
+  var curHour=Math.floor((Date.now()/1000%86400)/3600)||0;
+  fetch('/api/skip_time',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hour:((new Date()).getHours()+1)%24})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.ok){
+        addLog('system','时间推进至 '+d.time);
+        nextRound();
+      }
+    });
+}
+function doSleep(){
+  showLoading(true,'睡眠中...');
+  fetch('/api/sleep',{method:'POST'}).then(function(r){return r.json()})
+    .then(function(d){
+      showLoading(false);
+      if(d.ok){addLog('system',d.result);nextRound();}
+    });
+}

@@ -31,6 +31,11 @@ def get_active() -> dict:
                 "agent_model": p.get("agent_model", "").strip(),
                 "arbiter_model": p.get("arbiter_model", "").strip(),
                 "gm_model": p.get("gm_model", "").strip(),
+                "thinking_mode": p.get("thinking_mode", False),
+                "thinking_budget": p.get("thinking_budget", 0),
+                "agent_thinking": p.get("agent_thinking", p.get("thinking_mode", False)),
+                "arbiter_thinking": p.get("arbiter_thinking", p.get("thinking_mode", False)),
+                "gm_thinking": p.get("gm_thinking", False),
             }
     return {}
 

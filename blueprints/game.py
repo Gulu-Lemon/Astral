@@ -139,3 +139,17 @@ def api_move_player():
     if target and target in fr.get(_sess.session.world.current_floor,[]):
         _sess.session.player_location = target; _sess.session.world.explored_rooms.add(target)
     return jsonify({"ok":True,"location":_sess.session.player_location})
+
+@game_bp.route("/api/skip_time", methods=["POST"])
+def api_skip_time():
+    d = request.get_json() or {}
+    target_hour = int(d.get("hour", _sess.session.world.time_minutes // 60 + 1)) % 24
+    result = _sess.session.skip_time(target_hour)
+    return jsonify({"ok": True, "result": result, "time": _sess.session.world.current_time,
+                    "day": _sess.session.world.current_day})
+
+@game_bp.route("/api/sleep", methods=["POST"])
+def api_sleep():
+    result = _sess.session.sleep_until_morning()
+    return jsonify({"ok": True, "result": result, "time": _sess.session.world.current_time,
+                    "day": _sess.session.world.current_day})

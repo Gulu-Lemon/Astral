@@ -16,6 +16,8 @@
   <div class="top-actions">
     <span id="difficulty-badge"></span>
     <span id="floor-badge"></span>
+    <button id="btn-skip" title="跳过时间" style="background:none;border:1px solid var(--border);color:var(--text2);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;display:none;">⏩ 跳过</button>
+    <button id="btn-sleep" title="睡觉至次日" style="background:none;border:1px solid var(--border);color:var(--text2);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;display:none;">🌙 睡觉</button>
     <button id="btn-newgame" title="开始新游戏" style="background:none;border:1px solid var(--accent);color:var(--accent);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">&#9654; 新游戏</button>
     <button id="btn-settings" title="API 设置">&#9881;</button>
     <button id="btn-save" title="存档管理">&#128190;</button>
@@ -27,8 +29,12 @@
 
 <div id="main-layout">
   <aside id="npc-panel">
-    <div class="panel-header">角色 <span id="alive-count"></span></div>
+    <div class="panel-tabs">
+      <button class="panel-tab active" data-panel="npc">角色<span id="alive-count"></span></button>
+      <button class="panel-tab" data-panel="evidence" style="display:none;" id="panel-tab-ev">证物<span id="ev-count"></span></button>
+    </div>
     <div id="npc-list"></div>
+    <div id="evidence-list" style="display:none;"></div>
   </aside>
 
   <main id="narrative-area">
@@ -127,15 +133,16 @@
     <div id="trial-banner" style="display:none;">
       <div class="trial-icon">&#9878;</div>
       <div id="trial-info">魔女审判</div>
+      <div id="trial-timer" style="display:none;"></div>
       <div id="trial-phases">
         <span class="trial-phase-tag" data-phase="investigation">搜查</span>
         <span class="trial-phase-tag" data-phase="court_statement">陈述</span>
         <span class="trial-phase-tag" data-phase="court_debate">辩论</span>
-        <span class="trial-phase-tag" data-phase="closing">论告</span>
         <span class="trial-phase-tag" data-phase="voting">投票</span>
         <span class="trial-phase-tag" data-phase="execution">处刑</span>
       </div>
       <button id="trial-proceed-btn">推进审判</button>
+      <button id="trial-vote-btn" style="display:none;">进入投票</button>
     </div>
 
     <nav id="action-bar"></nav>
@@ -153,6 +160,22 @@
     <div id="save-slots"></div>
     <p style="font-size:11px;color:var(--text2);margin-top:8px;">读档后将推进一回合。自动存档在游戏事件时更新。</p>
     <button id="btn-close-save" class="mini-btn" style="margin-top:8px;width:100%;">关闭</button>
+  </div>
+</div>
+
+<!-- 投票弹窗 -->
+<div id="vote-panel" style="display:none;">
+  <div class="panel-overlay"></div>
+  <div class="panel-drawer" style="width:340px;">
+    <h3>&#9878; 投票</h3>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">选择你认为的凶手：</p>
+    <div id="vote-choices"></div>
+    <div class="form-group" style="margin-top:10px;">
+      <label>理由（可选）</label>
+      <input type="text" id="vote-reason" maxlength="200" placeholder="简短说一句...">
+    </div>
+    <button id="btn-vote-submit" class="mini-btn primary" style="width:100%;margin-top:8px;">提交投票</button>
+    <button id="btn-vote-cancel" class="mini-btn" style="width:100%;margin-top:4px;">取消</button>
   </div>
 </div>
 

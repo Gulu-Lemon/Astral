@@ -53,6 +53,74 @@ class IntentType(Enum):
     ATTACK = "attack"       # 直接攻击（需要无人目击或伪装）
     TRAP = "trap"           # 陷阱攻击（不要求无人目击）
     DEFEND = "defend"
+    # 审判专用
+    SEARCH = "search"           # 搜索房间/寻找证据
+    INTERROGATE = "interrogate"  # 询问其他 NPC
+    GUARD = "guard"             # 看守尸体/保护现场
+    WATCH = "watch"             # 观察其他人
+
+# ====== 行动计划（ActionPlan 系统）======
+
+@dataclass
+class ActionStep:
+    action_type: str = ""        # MOVE / EAT / SEARCH / SOCIALIZE / CONFRONT / REST / GUARD / WATCH / ...
+    target_location: Optional[str] = None
+    target_id: Optional[str] = None
+    duration: int = 0            # 本步骤耗时（分钟）
+    description: str = ""        # 行动描述（LLM生成）
+    interruptible: bool = True   # 是否可被其他 NPC 打断
+
+    def to_dict(self) -> dict:
+        return {
+            "action_type": self.action_type,
+            "target_location": self.target_location,
+            "target_id": self.target_id,
+            "duration": self.duration,
+            "description": self.description,
+            "interruptible": self.interruptible,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ActionStep":
+        return cls(
+            action_type=d.get("action_type", ""),
+            target_location=d.get("target_location"),
+            target_id=d.get("target_id"),
+            duration=d.get("duration", 0),
+            description=d.get("description", ""),
+            interruptible=d.get("interruptible", True),
+        )
+
+
+@dataclass
+class ActionPlan:
+    agent_id: str
+    steps: list["ActionStep"] = field(default_factory=list)
+    current_step_idx: int = 0
+    step_start_time: int = 0    # 当前步骤开始的 time_minutes
+    created_at: int = 0         # 计划生成的 time_minutes
+    is_completed: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "agent_id": self.agent_id,
+            "steps": [s.to_dict() for s in self.steps],
+            "current_step_idx": self.current_step_idx,
+            "step_start_time": self.step_start_time,
+            "created_at": self.created_at,
+            "is_completed": self.is_completed,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ActionPlan":
+        return cls(
+            agent_id=d.get("agent_id", ""),
+            steps=[ActionStep.from_dict(s) for s in d.get("steps", [])],
+            current_step_idx=d.get("current_step_idx", 0),
+            step_start_time=d.get("step_start_time", 0),
+            created_at=d.get("created_at", 0),
+            is_completed=d.get("is_completed", False),
+        )
 
 
 # ====== 子数据结构 ======
@@ -85,6 +153,41 @@ class Evidence:
             points_to=list(d.get("points_to", [])),
             reliability=d.get("reliability", "中等"),
             discovered=d.get("discovered", False),
+        )
+
+
+@dataclass
+class EvidenceItem:
+    """证物（新审判系统用，替代旧 Evidence 在审判中的角色）"""
+    item_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
+    name: str = ""                     # 证物名，如"沾血的匕首"
+    description: str = ""              # 详细描述（玩家视角）
+    found_by: str = ""                 # 发现者 agent_id（"player" 或 NPC id）
+    location: str = ""                 # 发现地点
+    found_time_tick: int = 0           # 发现时的 global_tick
+    is_key_evidence: bool = False      # 关键证物
+
+    def to_dict(self) -> dict:
+        return {
+            "item_id": self.item_id,
+            "name": self.name,
+            "description": self.description,
+            "found_by": self.found_by,
+            "location": self.location,
+            "found_time_tick": self.found_time_tick,
+            "is_key_evidence": self.is_key_evidence,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "EvidenceItem":
+        return cls(
+            item_id=d.get("item_id", uuid.uuid4().hex[:8]),
+            name=d.get("name", ""),
+            description=d.get("description", ""),
+            found_by=d.get("found_by", ""),
+            location=d.get("location", ""),
+            found_time_tick=d.get("found_time_tick", 0),
+            is_key_evidence=d.get("is_key_evidence", False),
         )
 
 
@@ -237,28 +340,37 @@ class Ruling:
 @dataclass
 class TrialState:
     active: bool = False
-    phase: str = ""           # "investigation" | "court_statement" | "court_debate" | "closing" | "voting" | "execution"
+    phase: str = ""           # "investigation" | "court_statement" | "court_debate" | "voting" | "execution"
     victim_id: str = ""
-    case_evidence: list[Evidence] = field(default_factory=list)
+    case_evidence: list = field(default_factory=list)        # 旧格式 Evidence，保持存档兼容
+    case_evidence_items: list["EvidenceItem"] = field(default_factory=list)  # 新证物系统
     statements: list[dict] = field(default_factory=list)
     votes: dict[str, str] = field(default_factory=dict)
     defendant_id: Optional[str] = None
     executed_id: Optional[str] = None
     turn_count: int = 0
-    player_has_argued: bool = False
+    # 新增字段
+    timer_start: int = 0          # 审判阶段开始的 time_minutes
+    timer_elapsed: int = 0        # 已消耗分钟
+    investigation_notes: dict[str, list[str]] = field(default_factory=dict)  # agent_id → 调查发现
+    murder_actor_id: str = ""     # 真凶的 agent_id
 
     def to_dict(self) -> dict:
         return {
             "active": self.active,
             "phase": self.phase,
             "victim_id": self.victim_id,
-            "case_evidence": [e.to_dict() for e in self.case_evidence],
+            "case_evidence": list(self.case_evidence),
+            "case_evidence_items": [e.to_dict() for e in self.case_evidence_items],
             "statements": list(self.statements),
             "votes": dict(self.votes),
             "defendant_id": self.defendant_id,
             "executed_id": self.executed_id,
             "turn_count": self.turn_count,
-            "player_has_argued": self.player_has_argued,
+            "timer_start": self.timer_start,
+            "timer_elapsed": self.timer_elapsed,
+            "investigation_notes": dict(self.investigation_notes),
+            "murder_actor_id": self.murder_actor_id,
         }
 
     @classmethod
@@ -267,13 +379,17 @@ class TrialState:
             active=d.get("active", False),
             phase=d.get("phase", ""),
             victim_id=d.get("victim_id", ""),
-            case_evidence=[Evidence.from_dict(e) for e in d.get("case_evidence", [])],
+            case_evidence=list(d.get("case_evidence", [])),
+            case_evidence_items=[EvidenceItem.from_dict(e) for e in d.get("case_evidence_items", [])],
             statements=list(d.get("statements", [])),
             votes=dict(d.get("votes", {})),
             defendant_id=d.get("defendant_id"),
             executed_id=d.get("executed_id"),
             turn_count=d.get("turn_count", 0),
-            player_has_argued=d.get("player_has_argued", False),
+            timer_start=d.get("timer_start", 0),
+            timer_elapsed=d.get("timer_elapsed", 0),
+            investigation_notes=dict(d.get("investigation_notes", {})),
+            murder_actor_id=d.get("murder_actor_id", ""),
         )
 
 
@@ -309,6 +425,7 @@ class BodyRecord:
 class WorldState:
     current_day: int = 1
     current_time: str = "上午7点"
+    time_minutes: int = 420    # 从 00:00 开始的分钟数（7:00 = 420）
     current_floor: int = 1
     explored_rooms: set[str] = field(default_factory=set)
     npc_locations: dict[str, str] = field(default_factory=dict)
@@ -353,6 +470,7 @@ class WorldState:
         return {
             "current_day": self.current_day,
             "current_time": self.current_time,
+            "time_minutes": self.time_minutes,
             "current_floor": self.current_floor,
             "explored_rooms": sorted(self.explored_rooms),
             "npc_locations": dict(self.npc_locations),
@@ -385,6 +503,7 @@ class WorldState:
         return cls(
             current_day=d.get("current_day", 1),
             current_time=d.get("current_time", "上午7点"),
+            time_minutes=d.get("time_minutes", 420),
             current_floor=d.get("current_floor", 1),
             explored_rooms=set(d.get("explored_rooms", [])),
             npc_locations=dict(d.get("npc_locations", {})),
@@ -445,6 +564,8 @@ class AgentState:
     action_log: list[dict] = field(default_factory=list)
     suspicion_map: dict[str, float] = field(default_factory=dict)
     alive: bool = True
+    investigation_result: list[str] = field(default_factory=list)  # 审判调查发现
+    current_plan: Optional["ActionPlan"] = None                      # 当前行动计划
 
     def to_dict(self) -> dict:
         return {
@@ -460,10 +581,13 @@ class AgentState:
             "action_log": list(self.action_log),
             "suspicion_map": dict(self.suspicion_map),
             "alive": self.alive,
+            "investigation_result": list(self.investigation_result),
+            "current_plan": self.current_plan.to_dict() if self.current_plan else None,
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> "AgentState":
+        plan_data = d.get("current_plan")
         return cls(
             agent_id=d.get("agent_id", ""),
             name=d.get("name", ""),
@@ -477,4 +601,6 @@ class AgentState:
             action_log=list(d.get("action_log", [])),
             suspicion_map=dict(d.get("suspicion_map", {})),
             alive=d.get("alive", True),
+            investigation_result=list(d.get("investigation_result", [])),
+            current_plan=ActionPlan.from_dict(plan_data) if plan_data else None,
         )
