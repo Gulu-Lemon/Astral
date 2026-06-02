@@ -85,6 +85,12 @@ document.addEventListener('DOMContentLoaded',function(){
   fetch('/api/state').then(function(r){return r.json()}).then(function(s){
     if(s.player_created&&s.prologue_step>=7){
       hideMainTabs();
+      el('#npc-panel').style.display='block';
+      el('#npc-list').style.display='block';
+      el('#story-log').style.display='block';
+      el('#map-strip').style.display='flex';
+      el('#action-bar').style.display='';
+      el('#narrative-content').style.display='';
       if(s.scene_name)el('#scene-label').textContent=s.scene_name;
       renderNPCs(s.npcs);updateInfo(s);
     }else if(s.player_created&&s.prologue_step>0&&s.prologue_step<7){
@@ -114,6 +120,7 @@ function hideMainTabs(){
 function restoreGameUI(){
   el('#settings-tab').style.display='none';
   el('#npc-panel').style.display='block';
+  el('#narrative-content').style.display='';
   el('#map-strip').style.display='flex';
   el('#story-log').style.display='block';
   el('#action-bar').style.display='';
@@ -1182,8 +1189,6 @@ function chooseEnding(endingId){
 }
 
 function showEndingScreen(text){
-  el('#narrative-content').style.display='none';
-  el('#npc-panel').style.display='none';
   el('#ending-banner').style.display='none';
   el('#ending-screen').style.display='flex';
   el('#ending-text').textContent=text||'故事结束了。';

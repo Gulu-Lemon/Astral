@@ -379,8 +379,8 @@ body {
 #ending-choices { display:flex; gap:6px; flex-wrap:wrap; }
 #ending-choices button { padding:6px 14px; background:var(--bg3); border:2px solid var(--accent2); border-radius:6px; color:var(--text); cursor:pointer; font-size:13px; transition:all .2s; }
 #ending-choices button:hover { border-color:var(--accent); background:var(--bg); color:var(--accent); }
-#ending-screen { display:none; flex-direction:column; align-items:center; flex:1; overflow-y:auto; padding-top:20px; }
-#ending-text { max-width:700px; }
+#ending-screen { display:none; position:fixed; inset:0; z-index:260; background:var(--bg); flex-direction:column; align-items:center; justify-content:center; }
+#ending-text { max-width:700px; white-space:pre-wrap; line-height:1.8; font-size:15px; padding:20px; }
 
 /* Debug panel */
 #debug-panel {
