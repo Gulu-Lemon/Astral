@@ -19,8 +19,9 @@
 | `npc_approaches` | `npcs: [{agent_id, agent_name, suggestions: [str,str,str]}]` | 有 NPC 主动走向玩家 |
 | `narrative_start` | (无额外字段) | GM 叙述开始 |
 | `narrative_done` | `text: str, options: [{label, type, target, room}]` | GM 叙述文本 + 4 个结构化选项 |
-| `round_end` | `day: int, time: str, phase: str, location: str, in_trial: bool, alive_count: int, rule_text: str, time_event: str?` | 回合结束总结 |
+| `round_end` | `day, time, phase, location, in_trial, alive_count, rule_text, time_event, npcs, ending_triggered, ending_resolved` | 回合结束总结 |
 | `error` | `message: str` | 回合级错误 |
+| `ending_triggered` | `trigger_type, branches, auto_ending?, revelation_hint` | 结局触发，branches 含可选择分支，auto_ending 表示自动结局 |
 | `_done_` | (sentinel, 不在前端消费) | SSE 流结束标记 |
 
 **选项 type 枚举**（Agent B gm.py ↔ Agent D app.js）：
@@ -66,14 +67,26 @@
 | POST | `/api/meta` | `{command}` | `{ok, result, command}` | 元指令：检查角色/位置/时间 |
 | POST | `/api/free_narrative` | `{action}` | `{ok, narrative, options}` | 自由行动叙述，不推进时间 |
 
+### 时间与结局
+
+| 方法 | 路径 | 请求体 | 响应体 | 备注 |
+|------|------|--------|--------|------|
+| POST | `/api/skip_time` | `{hour}` | `{ok, result, time, day}` | 跳过时间至整点 |
+| POST | `/api/sleep` | — | `{ok, result, time, day}` | 睡觉至次日 7 点 |
+| POST | `/api/ending/choose` | `{ending_id}` | `{ok, text, ending_id, ending_resolved}` | 选择结局分支 |
+
 ### 审判系统
 
 | 方法 | 路径 | 请求体 | 响应体 |
 |------|------|--------|--------|
 | POST | `/api/trial/investigate` | `{action}` | `{ok, description}` |
-| POST | `/api/trial/proceed` | — | `{ok, phase, text, votes?, defendant?}` |
+| POST | `/api/trial/proceed` | — | `{ok, phase, text, stream_url?}` |
+| GET | `/api/trial/debate_stream` | — | SSE 流（narrative_chunk / debate_done / error）|
+| POST | `/api/trial/debate_option` | `{type, target, argument?}` | `{ok, phase, ready_for_stream?}` |
 | POST | `/api/trial/argue` | `{argument}` | `{ok: true}` |
-| GET | `/api/trial/state` | — | `{active, phase, victim_id, victim_name, turn_count}` |
+| GET | `/api/trial/state` | — | `{active, phase, victim_id, victim_name, turn_count, timer_remaining, evidence_count}` |
+| GET | `/api/trial/evidence` | — | `{evidence: [...], count}` |
+| POST | `/api/trial/evidence/add` | `{item}` | `{ok, evidence?, narrative?, error?}` |
 
 ### 存档系统
 

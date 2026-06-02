@@ -2,23 +2,58 @@
 
 ## 核心引擎
 
-- **`state.py`**：6 个数据类（WorldState / AgentState / Intent / Ruling / Event / Evidence / TrialState）和 3 个枚举（GamePhase / DifficultyMode / IntentType），全部带完整的 `to_dict` / `from_dict` 序列化
-- **`llm.py`**：LLMClient，线程安全的 httpx 连接池，`chat()` 和 `chat_json()` 方法，从 LLM 响应中提取 JSON（支持 markdown 去除、多种回退解析）
-- **`agent_engine.py`**：NPCAgent 类，含 perceive / decide / dialogue / update_affection / update_threat；基于阶段的意图系统 `_allowed_intents()`；Perception 快照数据类；`_parse_intent_type()` 字符串→枚举映射
-- **`arbiter.py`**：Arbiter 类，process_round → detect_conflicts → rule_on_intent → apply_rulings 管线；基于阶段的攻击/陷阱/破坏行为权限控制；目击者检测；LLM 证据生成；风险评估骰子系统；好感度/威胁度裁定修改
-- **`gm.py`**：GMNarrator，synthesize_round → build_context → generate_narrative_and_options → parse_options / strip_options；基于位置/目击者的 NPC 可见性规则；`_npc_label()` 角色感知标注
-- **`server.py`**：GameSession 编排器；6 步序章流程（镜子→魔法→难度→营地→探索→管理员）；run_round 带 ThreadPoolExecutor agent 并行 + SSE 流式推送；谋杀检测、尸体发现（2+ 目击者触发）、审判自动启动；trial_investigate / trial_proceed / _trial_vote / _trial_execution；NPC 对话建议；check_floor_unlock / check_phase_transition / advance_time / broadcast_event；/api/meta 元指令；/api/free_narrative 自由叙述
+- **`state.py`**：13 个数据类（WorldState / AgentState / Intent / Ruling / Event / Evidence / TrialState / ActionStep / ActionPlan / EvidenceItem / EndingBranch / EndingConfig / AffectionEntry / BodyRecord）和 3 个枚举（GamePhase / DifficultyMode / IntentType 含 SEARCH 等新类型），全部带完整的 to_dict / from_dict 序列化
+- **`llm.py`**：LLMClient，线程安全的 httpx 连接池，chat() / chat_json() / chat_stream() 流式方法，从 LLM 响应中提取 JSON（支持 markdown 去除、多种回退解析）
+- **`agent_engine.py`**：NPCAgent 类，含 perceive / decide / plan / ensure_plan / dialogue / update_affection / update_threat；ActionPlan 调度引擎；Player→No.13 身份抹除翻译；Perception 快照数据类
+- **`arbiter.py`**：Arbiter 类，process_round → detect_conflicts → rule_on_intent → apply_rulings 管线；计划冲突检测（detect_plan_conflicts）；基于阶段的权限控制；目击者检测；风险评估骰子系统；好感度/威胁度裁定修改
+- **`gm.py`**：GMNarrator，synthesize_round → build_context → generate_narrative_and_options → stream_narrative；基于位置/目击者的 NPC 可见性规则；_npc_label() 角色感知标注
 
-## 服务端 API（39 个端点）
+## 时间系统
 
-- **序章**：`/api/prologue/mirror`、`/magic`、`/difficulty`、`/camp`、`/explore`、`/admin`、`/finish`
+- **分钟级时间**：WorldState.time_minutes，_tick() 逐分钟推进，_time_string() 格式化显示
+- **ActionPlan 调度**：NPC 生成 3-5 步行动计划，按 duration 逐分钟执行，支持被打断重计划
+- **Skip/Sleep**：玩家可跳过时间/睡觉，后台 Agent 继续跑
+- **审判计时**：搜查/辩论阶段 60 分钟倒计时
+
+## 审判系统（重构后）
+
+- **搜查阶段**：限时 60 分钟，NPC 自由调查，玩家调查/添加证物（LLM 校验）
+- **证物系统**：EvidenceItem CRUD，LLM 模型校验物品可获取性，右侧栏面板
+- **陈述阶段**：LLM 生成 NPC 开场陈述，玩家可选补充
+- **辩论阶段**：SSE 流式叙事，4 个选项（质疑/出示证物/推理/静观），手动共识→可选投票
+- **投票**：NPC 嫌疑度计算 + 玩家手动投票，前端投票弹窗
+- **处刑阶段**：LLM 叙事生成，云端假期全员抹杀规则
+
+## 结局系统
+
+- **EndingConfig**：场景级结局配置（触发类型/条件/分支）
+- **多分支结局**：天际迷宫 2 分支（到达引航台）、云端假期 4+1 分支（幸存 ≤5）
+- **自动结局**：玩家死亡立即触发死亡画面
+- **SSE 推送 + 前端结局画面**
+
+## API（47 个端点）
+
+- **序章**：`/api/prologue/mirror`、`/magic`、`/difficulty`、`/camp`、`/continue`、`/finish`
 - **游戏**：`/api/round`（SSE）、`/api/dialogue`、`/api/dialogue_suggestions`、`/api/explore`、`/api/investigate`、`/api/move_player`
-- **自由与指令**：`/api/free_narrative`（自由行动叙述）、`/api/meta`（元指令：检查角色/位置/时间）
-- **审判**：`/api/trial/investigate`、`/trial/proceed`、`/trial/argue`、`/trial/state`
-- **存档**：`/api/save/<slot>`、`/api/load/<slot>`、`/api/slots`、`/api/new_game`、`/api/select_scene`
+- **时间**：`/api/skip_time`、`/api/sleep`
+- **结局**：`/api/ending/choose`
+- **审判**：`/api/trial/investigate`、`/trial/proceed`、`/trial/argue`、`/trial/state`、`/trial/debate_stream`（SSE）、`/trial/debate_option`、`/trial/evidence`、`/trial/evidence/add`
+- **存档**：`/api/save/...`、`/api/load/...`、`/api/slots`、`/api/new_game`、`/api/select_scene`
 - **配置**：`/api/profiles`（GET/POST）、`/api/profiles/activate`、`/api/profiles/delete`、`/api/test_connection`
 - **角色卡**：`/api/cards`（GET/POST/DELETE）、`/api/start_with_card`
-- **其他**：`/api/scenes`、`/api/state`、静态文件 `/`
+- **其他**：`/api/scenes`、`/api/state`、`/api/meta`、`/api/free_narrative`、`/api/shutdown`、静态文件 `/`
+
+## NPC 感知平等
+
+- Prompt 中 player → No.13 翻译层
+- NPC 无法从编号/名称区分玩家和其他 NPC
+- GM 叙事中 _npc_label 正确处理玩家
+
+## 剧情模式
+
+- ATTACK/TRAP/SABOTAGE 降级为 CONFRONT
+- 审判不触发（NORMAL/WITCH 守卫）
+- 无命案设计
 
 ## 场景系统
 

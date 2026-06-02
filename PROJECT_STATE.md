@@ -1,5 +1,8 @@
 # Astral — 项目状态摘要
 
+## 版本
+v0.7（2026-06-02）— 审判系统重构 + ActionPlan 引擎 + 结局系统
+
 ## 项目路径
 `E:\dd\文档们\AI互动小说计划\Astral\`
 
@@ -10,40 +13,63 @@
 ```
 Astral/
 ├── server.py              # Flask 入口（34 行，Blueprint 注册）
-├── session.py             # GameSession 编排器（1143 行）
-├── state.py               # 核心数据结构（6 dataclass + 3 enum）
+├── session.py             # GameSession 编排器（~1750 行）
+├── state.py               # 核心数据结构（13 dataclass + 3 enum）
 ├── llm.py                 # 线程安全 LLM 客户端
-├── agent_engine.py        # 12 独立 NPC Agent
-├── arbiter.py             # 仲裁层（冲突消解 + d6 掷骰 + 证据生成）
-├── gm.py                  # GM 叙述层（文学性叙事 + 语境化 A/B/C/D 选项）
+├── agent_engine.py        # 12 独立 NPC Agent + ActionPlan 引擎
+├── arbiter.py             # 仲裁层（冲突消解 + d6 掷骰 + 计划冲突检测）
+├── gm.py                  # GM 叙述层（文学性叙事 + 语境化选项）
 ├── characters.py          # CharacterProfile 类定义
 ├── card_manager.py        # 角色卡文件管理
-├── config_profiles.py     # API 多配置管理
-├── save_manager.py        # 存档管理（自动 + 6 手动槽位）
+├── config_profiles.py     # API 多配置管理（含思考模式）
+├── save_manager.py        # 存档管理（自动 + 手动槽位）
 ├── debug.py               # 日志系统（4 个环形缓冲日志文件）
-├── blueprints/            # Flask Blueprint 路由模块（37 API）
+├── blueprints/            # Flask Blueprint 路由模块（47 API）
 │   ├── prologue.py        # 序章 8 端点
-│   ├── game.py            # 游戏主循环 6 端点（含 SSE）
-│   ├── trial.py           # 审判 4 端点
+│   ├── game.py            # 游戏主循环 9 端点（含 SSE + skip/sleep/ending）
+│   ├── trial.py           # 审判 8 端点（含辩论 SSE + 证物 CRUD）
 │   ├── save.py            # 存档/Load/新游戏 5 端点
 │   ├── settings.py        # API 配置/连接测试/shutdown 6 端点
 │   └── meta.py            # 场景/角色卡/状态/元指令 8 端点
 ├── scenarios/
 │   ├── __init__.py        # 场景注册/加载器
-│   ├── tianji_maze.py     # 天际迷宫
-│   ├── cloud_holiday.py   # 云端假期
+│   ├── tianji_maze.py     # 天际迷宫（含 ENDING_CONFIG）
+│   ├── cloud_holiday.py   # 云端假期（含 ENDING_CONFIG）
 │   └── snow_train.py      # 风雪列车
 ├── static/
-│   ├── index.html         # 单页面 UI
+│   ├── index.html         # 单页面 UI（含结局画面 + 投票弹窗 + 证物面板）
 │   ├── style.css          # 暗色主题
-│   └── app.js             # 客户端逻辑（570 行）
+│   └── app.js             # 客户端逻辑（~1200 行）
 ├── cards/                 # 角色卡 .txt 文件
 ├── saves/                 # 存档 JSON
 ├── logs/                  # debug 日志
 ├── config_profiles.json   # API 配置（多配置档案）
 ├── FEATURES.md            # 完整功能清单
-└── USAGE.md               # 使用指南
+├── AGENTS.md              # Agent 分工方案
+├── PROTOCOL.md            # 跨 Agent 契约
+└── 许愿书.md              # 设计需求 + 重构方案
 ```
+
+## 核心数据流
+```
+正常模式：
+  Agent.plan() → ActionPlan（3-5步） → _tick() 分钟级推进
+  玩家行动 → 仲裁 → GM 叙事 → SSE
+
+审判模式：
+  尸体发现 → 审判 ActionPlan → 搜查(限时) → 陈述 → 辩论(SSE) → 投票 → 处刑
+
+结局模式：
+  幸存 ≤ N 或 到达某地 → 结局横幅 → 选择分支 → 结局画面
+```
+
+## 核心功能数
+- 13 个数据类 + 3 个枚举
+- 47 个 API 端点
+- 3 个场景（含结局配置）
+- SSE 事件类型：6 → 新增 ending_triggered
+- 12 独立 NPC Agent（支持 ActionPlan 调度）
+- 4 个新的 IntentType（审判专用）
 
 ## 核心数据流（一轮游戏）
 ```

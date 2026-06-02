@@ -375,9 +375,43 @@ static/        ← 浏览器直接加载，通过 SSE/API 与 Agent C 通信
 - Agent B/C：`session` 单例从 `session.py` 导入，路径 `from session import session`
 - Agent D：API 路径全部不变，SSE 事件格式不变
 
+### 2026-06-02 — v1.3 审判系统重构 + 结局系统
+
+**跨 Agent 变更：审判流程重设计 + ActionPlan 引擎 + 结局系统**
+
+**Agent A 变更（state.py / characters.py / llm.py）：**
+- 新增 `ActionStep`、`ActionPlan` dataclass（NPC 多步行动计划）
+- 新增 `EvidenceItem` dataclass（新证物系统，旧 Evidence 废弃）
+- 新增 `EndingBranch`、`EndingConfig` dataclass（结局配置）
+- `TrialState`：+timer_start、timer_elapsed、investigation_notes、murder_actor_id、case_evidence_items，phase 移除 closing，移除 player_has_argued
+- `AgentState`：+investigation_result、current_plan
+- `WorldState`：+time_minutes、ending_triggered、ending_chosen、ending_resolved、player_is_murderer
+- `IntentType` 新增：SEARCH、INTERROGATE、GUARD、WATCH
+- `config_profiles.py`：+thinking_mode、thinking_budget、agent_thinking、arbiter_thinking、gm_thinking 字段
+
+**Agent B 变更（agent_engine.py / arbiter.py / gm.py）：**
+- `agent_engine.py`：+plan()、ensure_plan()、_build_plan_prompt()，+player→No.13 身份抹除翻译层（_display_id / _reverse_id）
+- `arbiter.py`：_generate_evidence() 废弃，+detect_plan_conflicts()
+- `gm.py`：_npc_label() 处理玩家名
+
+**Agent C 变更（session.py / blueprints / save_manager）：**
+- `session.py`：+_tick() 分钟级推进、_time_string()、skip_time()、sleep_until_morning()、generate_statement()、generate_debate_context()、stream_debate()、process_debate_option()、add_evidence() 带 LLM 校验、choose_ending()、_death_ending_text()、_check_ending_trigger()。_trial_execution() 重写：云端假期全员抹杀规则 + is_guilty 改用 murder_actor_id。
+- `blueprints/trial.py`：辩论 SSE /debate_stream + /debate_option + 证物 CRUD /evidence + /evidence/add + state 增强
+- `blueprints/game.py`：+skip_time、sleep、ending/choose 端点
+- `save_manager.py`：apply_loaded_state +time_minutes
+- 剧情模式：run_round() 中 ATTACK/TRAP/SABOTAGE 降级为 CONFRONT；_check_body_discovery() 中 NORMAL/WITCH 判定已存在
+
+**Agent D 变更（场景模块 / 前端）：**
+- `scenarios/__init__.py`：+ending_config 注册
+- `cloud_holiday.py`：+ENDING_CONFIG（5 结局分支，触发 ≤5 人，条件 player_is_murderer/player_not_murderer）
+- `tianji_maze.py`：+ENDING_CONFIG（2 结局分支，触发 到达引航台）
+- `snow_train.py`：未定义结局
+- 前端：证物面板（标签切换）+ 计时器 + 辩论 SSE + 投票弹窗 + skip/sleep 按钮 + 结局横幅/画面 + 死亡画面
+- API 路由：40 → 47
+
 ---
 
-*最后更新：2026-05-30 | 版本 v1.2*
+*最后更新：2026-06-02 | 版本 v1.3*
 
 ---
 
