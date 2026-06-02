@@ -1090,36 +1090,6 @@ D. ...
         _scene_label = self.scenario.get("name", self.scene_id) if self.scenario else self.scene_id
         progress_queue.put({"type":"round_end","scene_name":_scene_label,"day":self.world.current_day,"time":self.world.current_time,"phase":self.world.phase.value,"location":self.player_location,"floor":self.world.current_floor,"in_trial":bool(self.world.active_trial and self.world.active_trial.active),"alive_count":len(self.world.alive_npcs),"rule_text":"","time_event":getattr(self,'xbrdcst',None),"npcs":_npc_list,"ending_triggered":self.world.ending_triggered,"ending_resolved":self.world.ending_resolved})
 
-    def _tick(self, minutes: int = 1):
-        """推进游戏时间并执行所有 Agent 的 ActionPlan。"""
-        for _ in range(minutes):
-            old_minutes = self.world.time_minutes
-            self.world.time_minutes += 1
-            self.world.current_time = _time_string(self.world.time_minutes)
-            new_minutes = self.world.time_minutes
-
-            for aid, agent in self.agents.items():
-                st = self.agent_states.get(aid, DEAD_NPC)
-                if not st.alive:
-                    continue
-                plan = agent.ensure_plan(self.world)
-                if plan.is_completed or plan.current_step_idx >= len(plan.steps):
-                    continue
-
-                step = plan.steps[plan.current_step_idx]
-                elapsed = self.world.time_minutes - plan.step_start_time
-
-                if elapsed >= step.duration:
-                    self._execute_step(aid, step)
-                    plan.current_step_idx += 1
-                    plan.step_start_time = self.world.time_minutes
-
-                    if plan.current_step_idx >= len(plan.steps):
-                        plan.is_completed = True
-                        agent.plan(self.world, "当前计划完成，生成下一步")
-
-            self._check_time_broadcasts(old_minutes, new_minutes)
-
     def _execute_step(self, aid: str, step):
         """执行单个 ActionStep 的副作用。"""
         from state import ActionStep as _AS
@@ -1138,20 +1108,43 @@ D. ...
                 self._broadcast_event(h)
 
     def _advance_time(self, minutes: int = 60):
-        """推进游戏时间（分钟级）。正常模式默认 +60 分钟/轮。"""
+        """推进游戏时间（分钟级）。正常模式默认 +60 分钟/轮。只做纯时间推进，不走 ActionPlan 引擎。"""
         old_minutes = self.world.time_minutes
-        old_day = self.world.current_day
-
-        self._tick(minutes)
+        self.world.time_minutes += minutes
 
         if self.world.time_minutes >= 1440:
             self.world.time_minutes -= 1440
             self.world.current_day += 1
-            self.world.current_time = _time_string(self.world.time_minutes)
             self._apply_daily_curse()
 
-        if self.world.current_day > old_day:
-            self.xbrdcst = "夜深了。新的一天开始。"
+        self.world.current_time = _time_string(self.world.time_minutes)
+        self._check_time_broadcasts(old_minutes, self.world.time_minutes)
+
+    def _tick(self, minutes: int = 1):
+        """ActionPlan 驱动的逐分钟推进（用于 skip/sleep）。"""
+        for _ in range(minutes):
+            old_minutes = self.world.time_minutes
+            self.world.time_minutes += 1
+            self.world.current_time = _time_string(self.world.time_minutes)
+            new_minutes = self.world.time_minutes
+
+            for aid, agent in self.agents.items():
+                st = self.agent_states.get(aid, DEAD_NPC)
+                if not st.alive:
+                    continue
+                plan = agent.ensure_plan(self.world)
+                if plan.is_completed or plan.current_step_idx >= len(plan.steps):
+                    continue
+                step = plan.steps[plan.current_step_idx]
+                elapsed = self.world.time_minutes - plan.step_start_time
+                if elapsed >= step.duration:
+                    self._execute_step(aid, step)
+                    plan.current_step_idx += 1
+                    plan.step_start_time = self.world.time_minutes
+                    if plan.current_step_idx >= len(plan.steps):
+                        plan.is_completed = True
+                        agent.plan(self.world, "计划完成")
+            self._check_time_broadcasts(old_minutes, new_minutes)
 
     def skip_time(self, target_hour: int) -> str:
         """跳过时间到指定整点，仅在玩家位于自己房间时可用。
