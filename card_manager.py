@@ -374,7 +374,7 @@ def get_cards_mtime() -> float:
     return total
 
 
-_NPC_LIBRARY_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "NPC角色库")
+_NPC_LIBRARY_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "NPC_cards")
 
 
 def load_npc_library_card(scene_name: str, agent_id: str) -> Optional[dict]:
