@@ -409,9 +409,18 @@ static/        ← 浏览器直接加载，通过 SSE/API 与 Agent C 通信
 - 前端：证物面板（标签切换）+ 计时器 + 辩论 SSE + 投票弹窗 + skip/sleep 按钮 + 结局横幅/画面 + 死亡画面
 - API 路由：40 → 47
 
+### 2026-06-03 — v1.4 迭代修复 + 三阶段移除 + Skip + 思考模式
+
+**跨 Agent 变更：移除三阶段锁**
+- Agent A/B/C：删除 `_check_phase_transition()`；Arbiter 删除四条阶段审查；Agent 意图全开放；首案保护 `rounds_since_last_murder < 6` → `current_day == 1`
+- Agent C：`skip_time()` 支持模式切换（skip_hours/until）+ 时间选择器前端
+- Agent A+C：思考模式分组件配置（Agent/Arbiter/GM）+ LLMClient payload 透传 `thinking`
+- Agent B：`_npc_label` 加 `world` 参数，未认识 NPC 用外貌描述；`_extract_json` 截断 JSON 修复；`generate_options` max_tokens 512→1024
+- Agent D：skip 选择面板 + 思考模式设置面板 + addLog 定义补全 + fallback 选项简化 + 叉按钮恢复 action bar + phase 标签清空
+
 ---
 
-*最后更新：2026-06-02 | 版本 v1.3*
+*最后更新：2026-06-03 | 版本 v1.4*
 
 ---
 

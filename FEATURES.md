@@ -67,12 +67,18 @@
 
 ## 前端
 
-- **`index.html`**：序章画面、场景选择、角色卡选择、NPC 侧栏面板、叙事区、对话框、审判横幅、存档面板、设置面板、角色卡编辑器、加载遮罩
-- **`app.js`**（732 行）：序章步骤推进、SSE 回合流、NPC 渲染（好感度条/情绪标签）、对话系统（含建议选项）、审判流程（搜查→陈述→辩论→论告→投票→处刑）、存档/读档 UI、API 设置/配置管理、角色卡编辑器、场景选择、元指令检测、自由行动叙述、组合选项链、调试面板
-- **`style.css`**：暗色主题 CSS 变量、NPC 卡片动画、审判横幅、操作栏、模态框、加载动画
+- **`index.html`**：序章画面、场景选择、角色卡选择、NPC/证物面板（标签切换）、叙事区、对话框、审判横幅（含计时器）、结局横幅、结局画面、投票弹窗、skip 时间选择面板、存档面板、设置面板（含思考模式分组件开关）、角色卡编辑器、加载遮罩
+- **`app.js`**（~1200 行）：序章步骤推进、SSE 回合流（含 `ending_triggered` 事件）、NPC 渲染（好感度条/情绪标签）、对话系统（含建议选项）、审判流程（搜查→陈述→辩论 SSE→投票→处刑）、证物面板管理、结局选择 + 死亡画面、skip/sleep UI、API 设置/思考模式配置、角色卡编辑器、场景选择、自由行动
+- **`style.css`**：暗色主题 CSS 变量、NPC 卡片动画、审判横幅、证物面板、投票弹窗、时间选择器、结局画面、操作栏、模态框、加载动画
 
 ## 工具模块
 
 - **`debug.py`**：RingBuffer 文件日志器、RequestLogger（Flask 中间件）、ExceptionCatcher（全局异常 + 线程钩子）、AgentLogger（决策/叙事/仲裁日志）
-- **`config_profiles.py`**：多配置 API 管理（`config_profiles.json`）
-- **`save_manager.py`**：自动存档 + 6 个手动槽位、apply_loaded_state 存档恢复
+- **`config_profiles.py`**：多配置 API 管理（`config_profiles.json`，含思考模式分组件配置）
+- **`save_manager.py`**：自动存档 + 手动槽位、apply_loaded_state 存档恢复
+
+## 思考模式配置
+
+- 全局开关 + 分组件控制（Agent/Arbiter/GM）
+- 支持思考 token 预算（`thinking_budget`）
+- LLMClient chat()/chat_stream() 自动注入 payload

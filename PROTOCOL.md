@@ -71,7 +71,7 @@
 
 | 方法 | 路径 | 请求体 | 响应体 | 备注 |
 |------|------|--------|--------|------|
-| POST | `/api/skip_time` | `{hour}` | `{ok, result, time, day}` | 跳过时间至整点 |
+| POST | `/api/skip_time` | `{mode, hours?, hour?, minute?}` | `{ok, result, time, day}` | 时间跳转：skip_hours/until 两种模式 |
 | POST | `/api/sleep` | — | `{ok, result, time, day}` | 睡觉至次日 7 点 |
 | POST | `/api/ending/choose` | `{ending_id}` | `{ok, text, ending_id, ending_resolved}` | 选择结局分支 |
 
@@ -387,4 +387,4 @@ personality: 性格描述（可选）
 
 ---
 
-*最后更新：2026-05-08 | 版本 v1.0 | 与 Astral v0.5 源码一致 | 对照 PRJECT_STATE.md 已修复问题清单核实*
+*最后更新：2026-06-03 | 版本 v1.4*
