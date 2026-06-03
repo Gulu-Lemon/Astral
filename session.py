@@ -132,12 +132,28 @@ class GameSession:
 
     def _init_agents(self):
         init_aff = 25 if self.world.difficulty == DifficultyMode.WITCH else 15
-        # 天际迷宫主打场景探索，楼层有锁；其余场景全解锁
         if self.scene_id != "tianji_maze":
             self.world.floor_2_unlocked = True
             self.world.floor_3_unlocked = True
+
+        # 尝试从 NPC角色库 加载富角色卡
+        scene_chars = self.scenario.get("characters", {}) if self.scenario else {}
+        if scene_chars:
+            scene_name = self.scenario.get("name", "") if self.scenario else ""
+            if scene_name:
+                from card_manager import load_all_npc_library_cards
+                from characters import from_rich_card
+                lib_cards = load_all_npc_library_cards(scene_name, self.npc_ids)
+                if lib_cards:
+                    enriched = dict(scene_chars)  # 复制
+                    for aid, card in lib_cards.items():
+                        try:
+                            enriched[aid] = from_rich_card(card, agent_id=aid)
+                        except Exception:
+                            pass
+                    scene_chars = enriched
+
         for aid in self.npc_ids:
-            scene_chars = self.scenario.get("characters", {}) if self.scenario else {}
             agent = NPCAgent(aid, self.agent_llm, characters=scene_chars, player_name=self.player_name)
             self.agents[aid] = agent
             self.agent_states[aid] = agent.state

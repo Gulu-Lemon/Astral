@@ -372,3 +372,37 @@ def get_cards_mtime() -> float:
             except OSError:
                 pass
     return total
+
+
+_NPC_LIBRARY_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "NPC角色库")
+
+
+def load_npc_library_card(scene_name: str, agent_id: str) -> Optional[dict]:
+    """从 NPC角色库 目录加载指定场景的 NPC 角色卡。
+    scene_name: 场景全名，如 '魔法少女的云端假期'
+    agent_id: 如 'No.01'
+    返回 parse_card() 的 dict 结果，不存则返回 None。
+    """
+    lib_dir = os.path.join(_NPC_LIBRARY_ROOT, scene_name)
+    if not os.path.isdir(lib_dir):
+        return None
+    prefix = f"{agent_id} "
+    for fname in os.listdir(lib_dir):
+        if fname.startswith(prefix) and fname.endswith(".txt"):
+            path = os.path.join(lib_dir, fname)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return parse_card(f.read())
+            except Exception:
+                return None
+    return None
+
+
+def load_all_npc_library_cards(scene_name: str, npc_ids: list[str]) -> dict[str, dict]:
+    """批量加载场景所有 NPC 角色卡。返回 {agent_id: card_dict}。"""
+    result: dict[str, dict] = {}
+    for aid in npc_ids:
+        card = load_npc_library_card(scene_name, aid)
+        if card:
+            result[aid] = card
+    return result
