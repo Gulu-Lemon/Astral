@@ -77,21 +77,24 @@ class NPCAgent:
 
         prompt = self._build_decision_prompt(perception, world)
 
-        try:
-            result = self._llm.chat_json(
-                messages=[{"role": "user", "content": prompt}],
-                system=self.profile.system_prompt,
-                temperature=1.0,
-                max_tokens=4096,
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger("astral.agents").warning(f"Agent {self.agent_id} LLM 错误，默认待机: {e}")
-            return [Intent(
-                agent_id=self.agent_id,
-                intent_type=IntentType.REST,
-                reasoning="暂时不采取行动。",
-            )]
+        for attempt in range(2):
+            try:
+                result = self._llm.chat_json(
+                    messages=[{"role": "user", "content": prompt}],
+                    system=self.profile.system_prompt,
+                    temperature=1.0,
+                    max_tokens=4096,
+                )
+                break
+            except Exception as e:
+                if attempt == 1:
+                    import logging
+                    logging.getLogger("astral.agents").warning(f"Agent {self.agent_id} LLM 错误，默认待机: {e}")
+                    return [Intent(
+                        agent_id=self.agent_id,
+                        intent_type=IntentType.REST,
+                        reasoning="暂时不采取行动。",
+                    )]
 
         actions = result.get("actions")
         if actions is None:
@@ -137,18 +140,21 @@ class NPCAgent:
         perception = self.perceive(world)
         prompt = self._build_plan_prompt(perception, world, reason)
 
-        try:
-            result = self._llm.chat_json(
-                messages=[{"role": "user", "content": prompt}],
-                system=self.profile.system_prompt,
-                temperature=0.9,
-                max_tokens=2048,
-            )
-        except Exception:
-            import logging
-            logging.getLogger("astral.agents").warning(
-                f"Agent {self.agent_id} plan LLM 错误，生成默认计划")
-            result = None
+        for attempt in range(2):
+            try:
+                result = self._llm.chat_json(
+                    messages=[{"role": "user", "content": prompt}],
+                    system=self.profile.system_prompt,
+                    temperature=0.9,
+                    max_tokens=2048,
+                )
+                break
+            except Exception:
+                if attempt == 1:
+                    import logging
+                    logging.getLogger("astral.agents").warning(
+                        f"Agent {self.agent_id} plan LLM 错误（重试后仍失败），生成默认计划")
+                    result = None
 
         steps_raw = result.get("steps", []) if result else []
         steps = []
@@ -373,15 +379,18 @@ attack 需要周围无目击者，否则会被放弃。
 
         你作为 {self.profile.name}，请用你的性格、情绪和说话方式直接回应。好感度影响语气态度——高好感温暖亲近，低好感冷淡疏远或暗含敌意。只用对话和行动描写，不要内心独白。50-100字。"""
 
-        try:
-            text = self._llm.chat(
-                messages=[{"role": "user", "content": prompt}],
-                system=self.profile.system_prompt,
-                temperature=0.95,
-                max_tokens=1024,
-            )
-        except Exception:
-            text = ""
+        for attempt in range(2):
+            try:
+                text = self._llm.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    system=self.profile.system_prompt,
+                    temperature=0.95,
+                    max_tokens=1024,
+                )
+                break
+            except Exception:
+                if attempt == 1:
+                    text = ""
 
         # 剥离残留的内心独白标记
         import re
