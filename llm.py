@@ -163,7 +163,6 @@ class LLMClient:
 
         # 移除 markdown 代码块标记
         text = raw
-        # ```json ... ``` 或 ``` ... ```
         code_block = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
         if code_block:
             text = code_block.group(1).strip()
@@ -174,7 +173,6 @@ class LLMClient:
         if first != -1 and last > first:
             text = text[first:last + 1]
 
-        # 尝试清理常见问题：尾部逗号、单引号
         text = text.strip()
 
         try:
@@ -189,11 +187,42 @@ class LLMClient:
         except (ValueError, SyntaxError):
             pass
 
-        # 最后手段：修复单引号
+        # 修复单引号
         try:
             fixed = text.replace("'", '"')
             return json.loads(fixed)
         except json.JSONDecodeError:
+            pass
+
+        # 截断修复：补全缺失的括号和引号（在原始文本上操作）
+        try:
+            full = raw
+            code_block2 = re.search(r'```(?:json)?\s*\n?(.*?)```', full, re.DOTALL)
+            if code_block2:
+                full = code_block2.group(1).strip()
+            first2 = full.find('{')
+            if first2 != -1:
+                full = full[first2:]
+            brace_diff = full.count('{') - full.count('}')
+            bracket_diff = full.count('[') - full.count(']')
+            in_string = False
+            escaped = False
+            for ch in full:
+                if escaped: escaped = False; continue
+                if ch == '\\': escaped = True; continue
+                if ch == '"': in_string = not in_string
+            fixed = full
+            if in_string:
+                fixed += '"'
+            # 关闭顺序：N-1 个内部对象 → 全部数组 → 最外层对象
+            if brace_diff > 0:
+                inner = max(0, brace_diff - 1)
+                fixed += '}' * inner
+            fixed += ']' * bracket_diff
+            if brace_diff > 0:
+                fixed += '}'
+            return json.loads(fixed)
+        except (json.JSONDecodeError, Exception):
             pass
 
         raise ValueError(f"无法从响应中提取 JSON: {raw[:200]}")
