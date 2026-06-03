@@ -1,17 +1,44 @@
-"""Game blueprint — 6 endpoints: round (SSE), dialogue, suggestions, explore, investigate, move_player."""
-import json, queue, threading, traceback
+"""Game blueprint — game loop, dialogue, explore, investigate, skip, sleep, ending."""
+import json, queue, threading, traceback, re
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 import session as _sess
 from state import roll_risk
 
 game_bp = Blueprint('game', __name__)
 
+def _extract_elapsed(text: str, default: int = 8) -> int:
+    """从 LLM 回答中提取分钟数。失败重试一次，再失败返回默认。"""
+    if not text: return default
+    for pat in [r'(\d+)\s*分', r'(\d+)\s*min', r'(\d+)\s*分钟', r'elapsed[:\s]*(\d+)']:
+        m = re.search(pat, text, re.IGNORECASE)
+        if m: return max(1, min(120, int(m.group(1))))
+    nums = re.findall(r'\d+', text)
+    if nums: return max(1, min(120, int(nums[-1])))
+    return default
+
+def _estimate_time_via_llm(llm, context: str, prompt_suffix: str = "", default: int = 8) -> int:
+    """调 LLM 专门估算时间。重试一次。"""
+    for attempt in range(2):
+        try:
+            suffix = prompt_suffix if attempt == 0 else "只回答一个数字，表示大概过了几分钟。不要任何其他文字。"
+            resp = llm.chat(
+                messages=[{"role": "user", "content": context + "\n\n" + suffix}],
+                system="你是时间估算器。基于叙述内容估计过去了多少分钟。数字。",
+                temperature=0.1, max_tokens=8,
+            )
+            elapsed = _extract_elapsed(resp, -1)
+            if elapsed > 0: return elapsed
+        except Exception:
+            pass
+    return default
+
 @game_bp.route("/api/round")
 def api_round():
+    elapsed = int(request.args.get("elapsed", 60))
     def generate():
         q = queue.Queue()
         def worker():
-            try: _sess.session.run_round(q)
+            try: _sess.session.run_round(q, elapsed_minutes=elapsed)
             except Exception as e: q.put({"type":"error","message":f"{e}\n{traceback.format_exc()}"})
             finally: q.put({"type":"_done_"})
         t = threading.Thread(target=worker); t.start()
@@ -52,11 +79,14 @@ def api_dialogue():
         micro = _sess.session.llm.chat(
             messages=[{"role":"user","content":f"玩家对{agent.profile.name}说：「{msg}」\n{agent.profile.name}回答：「{resp}」\n请描述这个对话场景。以第二人称。避免元语言。"}],
             system=f"你是故事旁白。场景：{_sess.session.scenario.get('name','')}。", temperature=0.8, max_tokens=512)
-    except: pass
+    except: micro = ""
+    elapsed = _estimate_time_via_llm(_sess.session.llm,
+        f"玩家与{agent.profile.name}进行了如下对话：\n玩家：「{msg}」\n{agent.profile.name}：「{resp}」\n\n根据对话长度和内容深度，估计大约过了多少分钟。",
+        "估计这次对话持续了多少分钟？只回答数字。", default=10)
     _sess.session._pending_player_dialogues.append({
         "agent_id": aid, "msg": msg, "resp": resp, "tick": _sess.session.world.global_tick
     })
-    return jsonify({"ok":True,"agent_name":agent.profile.name,"response":resp,"affection":agent.state.affection_map.get("player",50),"micro_narrative":micro})
+    return jsonify({"ok":True,"agent_name":agent.profile.name,"response":resp,"affection":agent.state.affection_map.get("player",50),"micro_narrative":micro,"elapsed_minutes":elapsed})
 
 @game_bp.route("/api/dialogue_suggestions", methods=["POST"])
 def api_dialogue_suggestions():
@@ -75,7 +105,7 @@ def api_explore():
             return jsonify({"ok":False,"error":"你无法直接前往那个区域，需要先经过中间的车厢/楼层。"})
         if tf == 2 and not _sess.session.world.floor_2_unlocked: return jsonify({"ok":False,"error":"还无法进入这个区域。"})
         if tf == 3 and not _sess.session.world.floor_3_unlocked: return jsonify({"ok":False,"error":"还无法前往更深处。"})
-        if tf > 1: _sess.session.world.current_floor = tf; _sess.session.world.world_revelation_phase = tf; _sess.session.player_location = room; _sess.session.world.explored_rooms.add(room); return jsonify({"ok":True,"room":room,"description":"你来到了新的楼层。","location":_sess.session.player_location})
+        if tf > 1: _sess.session.world.current_floor = tf; _sess.session.world.world_revelation_phase = tf; _sess.session.player_location = room; _sess.session.world.explored_rooms.add(room); return jsonify({"ok":True,"room":room,"description":"你来到了新的楼层。","location":_sess.session.player_location,"elapsed_minutes":10})
     _sess.session.player_location = room; _sess.session.world.explored_rooms.add(room)
     npcs_here = []
     for aid, aloc in _sess.session.world.npc_locations.items():
@@ -90,7 +120,9 @@ def api_explore():
     try:
         desc = _sess.session.llm.chat(messages=[{"role":"user","content":f"描述场景：{room}。用第二人称。\n\n当前在此房间的角色：{npcs_desc}\n场景基调：{_sess.session.scenario.get('scene_tone','') if _sess.session.scenario else ''}\n\n注意：只能描写上述列表中的角色。未认识名字的用外貌特征描述。禁止编造不在列表中的角色。"}], system=f"你是故事旁白。场景：{_sess.session.scenario.get('name','') if _sess.session.scenario else ''}。", temperature=0.8, max_tokens=512)
     except: desc = f"你来到了{room}。"
-    return jsonify({"ok":True,"room":room,"description":desc,"location":_sess.session.player_location})
+    elapsed = _estimate_time_via_llm(_sess.session.llm,
+        f"玩家移动到了新房间：{room}。当前房间有这些人：{npcs_desc}。", "估计这次移动花了多少分钟？只回答数字。", default=5)
+    return jsonify({"ok":True,"room":room,"description":desc,"location":_sess.session.player_location,"elapsed_minutes":elapsed})
 
 @game_bp.route("/api/investigate", methods=["POST"])
 def api_investigate():
@@ -98,7 +130,7 @@ def api_investigate():
     if not action: return jsonify({"ok":False,"error":"未指定行动"})
     room = _sess.session.player_location; world = _sess.session.world
     if world.active_trial and world.active_trial.active and world.active_trial.phase == "investigation":
-        return jsonify({"ok":True,"action":action,"description":_sess.session.trial_investigate(action),"trial_evidence":True})
+        return jsonify({"ok":True,"action":action,"description":_sess.session.trial_investigate(action),"trial_evidence":True,"elapsed_minutes":8})
     room_items = world.room_item_state.get(room,{})
     items_desc = "、".join(f"{k}" if v == "存在" else f"{k}({v})" for k,v in room_items.items()) if room_items else "无"
     inv_desc = "、".join(world.player_inventory) if world.player_inventory else "无"
@@ -110,10 +142,14 @@ def api_investigate():
 当前房间的物品状态：{items_desc}
 玩家物品栏：{inv_desc}
 
-决定这次行动的结果。输出 JSON：{{"narrative":"...","take_item":null,"remove_item":null,"add_item":null,"knowledge":null,"room_state_change":null,"risk":"低风险"}}
+决定这次行动的结果。输出 JSON：{{"narrative":"...","elapsed_minutes":8,"take_item":null,"remove_item":null,"add_item":null,"knowledge":null,"room_state_change":null,"risk":"低风险"}}
 规则：禁止编造新名字新角色。只描写已存在的物品和NPC。以下是本场景全部角色：{_sess.session._roster()}
-只有可移动的小件物品才能拿走。""" }], system="你是故事旁白。直接、简洁。必须输出 JSON。", temperature=0.9, max_tokens=1024)
+只有可移动的小件物品才能拿走。elapsed_minutes 是你估计这次行动花了多少分钟（整数）。""" }], system="你是故事旁白。直接、简洁。必须输出 JSON。", temperature=0.9, max_tokens=1024)
         narrative = result.get("narrative","你仔细看了看，但没有特别的发现。")
+        elapsed = int(result.get("elapsed_minutes", 0) or 0)
+        if elapsed <= 0: elapsed = _estimate_time_via_llm(_sess.session.llm,
+            f"玩家执行了以下行动：{action}。在房间：{room}。结果：{narrative[:200]}",
+            "只回答数字：这次行动花了多少分钟？", default=8)
         take = result.get("take_item"); remove = result.get("remove_item"); add = result.get("add_item")
         kn = result.get("knowledge"); rsc = result.get("room_state_change"); risk = result.get("risk","低风险")
         risk_ok = roll_risk(risk)
@@ -127,10 +163,12 @@ def api_investigate():
                 for k,v in rsc.items(): world.room_item_state.setdefault(room,{})[k] = v
         _sess.session._log("system", f"你: {action}")
         _sess.session._log("gm", narrative)
-        return jsonify({"ok":True,"action":action,"description":narrative,"inventory":world.player_inventory})
+        return jsonify({"ok":True,"action":action,"description":narrative,"inventory":world.player_inventory,"elapsed_minutes":elapsed})
     except Exception as e:
         desc = _sess.session.llm.chat(messages=[{"role":"user","content":f"玩家在【{room}】中执行了：{action}。直接描写，用'你'指代玩家角色。禁止编造新角色。"}], system="你是故事旁白。", temperature=0.9, max_tokens=512)
-        return jsonify({"ok":True,"action":action,"description":desc})
+        elapsed = _estimate_time_via_llm(_sess.session.llm,
+            f"玩家执行了：{action}。在房间：{room}。", "只回答数字：这次行动花了多少分钟？", default=8)
+        return jsonify({"ok":True,"action":action,"description":desc,"elapsed_minutes":elapsed})
 
 @game_bp.route("/api/move_player", methods=["POST"])
 def api_move_player():

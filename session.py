@@ -936,10 +936,10 @@ D. ...
 
     # === Game Loop ===
 
-    def run_round(self, progress_queue: queue.Queue):
+    def run_round(self, progress_queue: queue.Queue, elapsed_minutes: int = 60):
         self.round_count += 1
         self.world.global_tick += 1
-        self._advance_time()
+        self._advance_time(elapsed_minutes)
         self.world.npc_locations["player"] = self.player_location
         progress_queue.put({"type":"round_start","round":self.round_count})
         self._check_floor_unlock()
