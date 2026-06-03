@@ -56,6 +56,11 @@ def list_profiles() -> list[dict]:
             "agent_model": p.get("agent_model", "").strip(),
             "arbiter_model": p.get("arbiter_model", "").strip(),
             "gm_model": p.get("gm_model", "").strip(),
+            "thinking_mode": p.get("thinking_mode", False),
+            "thinking_budget": p.get("thinking_budget", 0),
+            "agent_thinking": p.get("agent_thinking", p.get("thinking_mode", False)),
+            "arbiter_thinking": p.get("arbiter_thinking", p.get("thinking_mode", False)),
+            "gm_thinking": p.get("gm_thinking", False),
         }
         entry["has_key"] = bool(p.get("api_key", "").strip())
         entry["active"] = p.get("name") == active_name
@@ -65,7 +70,10 @@ def list_profiles() -> list[dict]:
 
 def save_profile(name: str, base_url: str, api_key: str, model: str,
                  temperature: float = 1.0, top_p: float = 0.95,
-                 agent_model: str = "", arbiter_model: str = "", gm_model: str = "") -> bool:
+                 agent_model: str = "", arbiter_model: str = "", gm_model: str = "",
+                 thinking_mode: bool = False, thinking_budget: int = 0,
+                 agent_thinking: bool = False, arbiter_thinking: bool = False,
+                 gm_thinking: bool = False) -> bool:
     name = name.strip()
     base_url = base_url.strip()
     api_key = api_key.strip()
@@ -77,6 +85,8 @@ def save_profile(name: str, base_url: str, api_key: str, model: str,
     except (ValueError, TypeError): temperature = 1.0
     try: top_p = float(top_p)
     except (ValueError, TypeError): top_p = 0.95
+    try: thinking_budget = int(thinking_budget)
+    except (ValueError, TypeError): thinking_budget = 0
     _ensure()
     with open(PROFILES_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -93,10 +103,20 @@ def save_profile(name: str, base_url: str, api_key: str, model: str,
                 "agent_model": agent_model,
                 "arbiter_model": arbiter_model,
                 "gm_model": gm_model,
+                "thinking_mode": thinking_mode,
+                "thinking_budget": thinking_budget,
+                "agent_thinking": agent_thinking,
+                "arbiter_thinking": arbiter_thinking,
+                "gm_thinking": gm_thinking,
             }
             break
     else:
-        profiles.append({"name": name, "base_url": base_url, "api_key": api_key, "model": model, "temperature": temperature, "top_p": top_p, "agent_model": agent_model, "arbiter_model": arbiter_model, "gm_model": gm_model})
+        profiles.append({"name": name, "base_url": base_url, "api_key": api_key, "model": model,
+            "temperature": temperature, "top_p": top_p,
+            "agent_model": agent_model, "arbiter_model": arbiter_model, "gm_model": gm_model,
+            "thinking_mode": thinking_mode, "thinking_budget": thinking_budget,
+            "agent_thinking": agent_thinking, "arbiter_thinking": arbiter_thinking,
+            "gm_thinking": gm_thinking})
     # 如果没有 active，自动设为这个
     if not data.get("active"):
         data["active"] = name
@@ -141,6 +161,8 @@ def apply_to_llm(llm) -> bool:
     llm.model = cfg["model"].strip()
     llm.default_temperature = cfg.get("temperature", 1.0)
     llm.default_top_p = cfg.get("top_p", 0.95)
+    llm.thinking_enabled = cfg.get("thinking_mode", False)
+    llm.thinking_budget = cfg.get("thinking_budget", 0)
     llm.close()
     return True
 
@@ -167,8 +189,14 @@ def apply_to_all_llms(base_llm, agent_llm, gm_llm) -> bool:
     # 模型按角色覆盖
     base_llm.model = default_model
     agent_llm.model = agent_model or default_model
-    # arbiter 和 gm 分别设置（如未指定则用 gm_model 回退，再回退到默认）
     gm_llm.model = gm_model or default_model
+    # 思考模式按角色设置
+    base_llm.thinking_enabled = cfg.get("thinking_mode", False)
+    base_llm.thinking_budget = cfg.get("thinking_budget", 0)
+    agent_llm.thinking_enabled = cfg.get("agent_thinking", cfg.get("thinking_mode", False))
+    agent_llm.thinking_budget = cfg.get("thinking_budget", 0)
+    gm_llm.thinking_enabled = cfg.get("gm_thinking", False)
+    gm_llm.thinking_budget = cfg.get("thinking_budget", 0)
     for llm in (base_llm, agent_llm, gm_llm):
         llm.close()
     return True

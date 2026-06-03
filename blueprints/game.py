@@ -143,8 +143,16 @@ def api_move_player():
 @game_bp.route("/api/skip_time", methods=["POST"])
 def api_skip_time():
     d = request.get_json() or {}
-    target_hour = int(d.get("hour", _sess.session.world.time_minutes // 60 + 1)) % 24
-    result = _sess.session.skip_time(target_hour)
+    mode = d.get("mode", "skip_hours")
+    kwargs = {}
+    if mode == "until":
+        kwargs = {"hour": int(d.get("hour", 14)), "minute": int(d.get("minute", 0))}
+    elif d.get("hour") is not None and mode == "skip_hours":
+        # 兼容旧格式: {hour: N} 表示跳到 N 点
+        kwargs = {"target_hour": int(d.get("hour"))}
+    else:
+        kwargs = {"hours": int(d.get("hours", 1))}
+    result = _sess.session.skip_time(mode=mode, **kwargs)
     return jsonify({"ok": True, "result": result, "time": _sess.session.world.current_time,
                     "day": _sess.session.world.current_day})
 

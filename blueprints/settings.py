@@ -17,7 +17,10 @@ def api_save_profile():
     if not name: return jsonify({"ok":False,"error":"配置名不能为空"})
     _scp(name, d.get("base_url",""), d.get("api_key",""), d.get("model",""),
          d.get("temperature", 1.0), d.get("top_p", 0.95),
-         d.get("agent_model",""), d.get("arbiter_model",""), d.get("gm_model",""))
+         d.get("agent_model",""), d.get("arbiter_model",""), d.get("gm_model",""),
+         d.get("thinking_mode", False), d.get("thinking_budget", 0),
+         d.get("agent_thinking", False), d.get("arbiter_thinking", False),
+         d.get("gm_thinking", False))
     return jsonify({"ok":True,"profiles":_lcp()})
 
 @settings_bp.route("/api/profiles/activate", methods=["POST"])

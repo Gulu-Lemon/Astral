@@ -24,6 +24,8 @@ class LLMClient:
             self.api_key = ""
             self.model = ""
         self._local = threading.local()
+        self.thinking_enabled: bool = False
+        self.thinking_budget: int = 0
 
     def _get_client(self):
         """获取当前线程的 httpx.Client（线程局部，延迟创建）"""
@@ -60,6 +62,10 @@ class LLMClient:
             "max_tokens": max_tokens,
             "top_p": top_p if top_p is not None else self.default_top_p,
         }
+        if self.thinking_enabled:
+            payload["thinking"] = {"type": "enabled"}
+            if self.thinking_budget > 0:
+                payload["thinking"]["budget_tokens"] = self.thinking_budget
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -109,6 +115,10 @@ class LLMClient:
             "max_tokens": max_tokens,
             "stream": True,
         }
+        if self.thinking_enabled:
+            payload["thinking"] = {"type": "enabled"}
+            if self.thinking_budget > 0:
+                payload["thinking"]["budget_tokens"] = self.thinking_budget
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

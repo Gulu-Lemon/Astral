@@ -18,6 +18,15 @@
     <span id="floor-badge"></span>
     <button id="btn-skip" title="跳过时间" style="background:none;border:1px solid var(--border);color:var(--text2);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;display:none;">⏩ 跳过</button>
     <button id="btn-sleep" title="睡觉至次日" style="background:none;border:1px solid var(--border);color:var(--text2);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;display:none;">🌙 睡觉</button>
+    <span id="skip-panel" style="display:none;align-items:center;gap:4px;">
+      <select id="skip-mode" style="font-size:11px;padding:3px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;">
+        <option value="skip_hours">跳过</option>
+        <option value="until">直至</option>
+      </select>
+      <input id="skip-val" type="text" value="1" style="width:28px;font-size:11px;padding:3px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;text-align:center;" maxlength="2"> <span style="font-size:10px;color:var(--text2);" id="skip-unit">小时</span>
+      <button id="btn-skip-confirm" style="font-size:10px;padding:3px 6px;background:var(--accent);border:none;color:#fff;border-radius:3px;cursor:pointer;">确定</button>
+      <button id="btn-skip-cancel" style="font-size:10px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:3px;cursor:pointer;">取消</button>
+    </span>
     <button id="btn-newgame" title="开始新游戏" style="background:none;border:1px solid var(--accent);color:var(--accent);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">&#9654; 新游戏</button>
     <button id="btn-settings" title="API 设置">&#9881;</button>
     <button id="btn-save" title="存档管理">&#128190;</button>
@@ -92,6 +101,12 @@
             <div class="form-rule"></div>
             <div class="form-group"><label>温度 (Temperature) <span id="cfg-temp-val">1.0</span></label><input type="range" id="cfg-temp" min="0" max="2" step="0.1" value="1.0" oninput="document.getElementById('cfg-temp-val').textContent=this.value"></div>
             <div class="form-group"><label>Top P <span id="cfg-topp-val">0.95</span></label><input type="range" id="cfg-topp" min="0" max="1" step="0.05" value="0.95" oninput="document.getElementById('cfg-topp-val').textContent=this.value"></div>
+            <div class="form-rule"></div>
+            <div class="form-group" style="margin-bottom:2px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="cfg-thinking" style="width:auto;"> 启用思考模式</label></div>
+            <div class="form-group" style="margin-bottom:2px;"><label>思考 Token 预算 <span style="font-size:10px;color:var(--text2);">(0=不限)</span></label><input type="text" id="cfg-thinking-budget" value="0" maxlength="6" style="width:80px;"></div>
+            <div class="form-group" style="margin-bottom:2px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="cfg-agent-thinking" style="width:auto;"> Agent 决策使用思考</label></div>
+            <div class="form-group" style="margin-bottom:2px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="cfg-arbiter-thinking" style="width:auto;"> Arbiter 仲裁使用思考</label></div>
+            <div class="form-group" style="margin-bottom:2px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="cfg-gm-thinking" style="width:auto;"> GM 叙事使用思考</label></div>
           </div>
         </div>
         <div id="cfg-status" class="conn-checking" style="display:none;"></div>

@@ -45,6 +45,9 @@ document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('.panel-tab').forEach(function(b){b.addEventListener('click',function(){switchPanelTab(b.dataset.panel)})});
   bind('#btn-skip','click',doSkipTime);
   bind('#btn-sleep','click',doSleep);
+  bind('#btn-skip-confirm','click',doSkipConfirm);
+  bind('#btn-skip-cancel','click',doSkipCancel);
+  bind('#skip-mode','change',doSkipModeChange);
   bind('#ev-add-btn','click',addEvidenceItem);
   bind('#ev-input','keydown',function(e){if(e.key==='Enter')addEvidenceItem()});
   bind('#prologue-btn','click',prologueSubmit);
@@ -1082,10 +1085,14 @@ function activateProfile(name){
 function editProfile(name){
   fetch('/api/profiles').then(function(r){return r.json()}).then(function(d){
     var p=(d.profiles||[]).find(function(x){return x.name===name});
-    if(p){el('#cfg-name').value=p.name;el('#cfg-url').value=p.base_url;el('#cfg-key').value='';el('#cfg-model').value=p.model;el('#cfg-key').placeholder='(留空不修改)';
+    if(p){
+      el('#cfg-name').value=p.name;el('#cfg-url').value=p.base_url;el('#cfg-key').value='';el('#cfg-model').value=p.model;el('#cfg-key').placeholder='(留空不修改)';
       el('#cfg-agent-model').value=p.agent_model||'';el('#cfg-arbiter-model').value=p.arbiter_model||'';el('#cfg-gm-model').value=p.gm_model||'';
       el('#cfg-temp').value=p.temperature||1.0;el('#cfg-temp-val').textContent=p.temperature||1.0;
-      el('#cfg-topp').value=p.top_p||0.95;el('#cfg-topp-val').textContent=p.top_p||0.95;}
+      el('#cfg-topp').value=p.top_p||0.95;el('#cfg-topp-val').textContent=p.top_p||0.95;
+      el('#cfg-thinking').checked=!!p.thinking_mode;el('#cfg-thinking-budget').value=p.thinking_budget||0;
+      el('#cfg-agent-thinking').checked=!!p.agent_thinking;el('#cfg-arbiter-thinking').checked=!!p.arbiter_thinking;el('#cfg-gm-thinking').checked=!!p.gm_thinking;
+    }
   });
 }
 function deleteProfile(name){
@@ -1101,7 +1108,12 @@ function saveSettings(){
     temperature:parseFloat(el('#cfg-temp').value),top_p:parseFloat(el('#cfg-topp').value),
     agent_model:el('#cfg-agent-model').value.trim(),
     arbiter_model:el('#cfg-arbiter-model').value.trim(),
-    gm_model:el('#cfg-gm-model').value.trim()};
+    gm_model:el('#cfg-gm-model').value.trim(),
+    thinking_mode:el('#cfg-thinking').checked,
+    thinking_budget:parseInt(el('#cfg-thinking-budget').value)||0,
+    agent_thinking:el('#cfg-agent-thinking').checked,
+    arbiter_thinking:el('#cfg-arbiter-thinking').checked,
+    gm_thinking:el('#cfg-gm-thinking').checked};
   if(key)body.api_key=key;
   el('#cfg-status').style.display='block';el('#cfg-status').textContent='保存中...';el('#cfg-status').className='conn-checking';
   fetch('/api/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
@@ -1110,6 +1122,8 @@ function saveSettings(){
         loadProfiles();
         el('#cfg-name').value='';el('#cfg-url').value='';el('#cfg-key').value='';el('#cfg-model').value='';
         el('#cfg-agent-model').value='';el('#cfg-arbiter-model').value='';el('#cfg-gm-model').value='';
+        el('#cfg-thinking').checked=false;el('#cfg-thinking-budget').value='0';
+        el('#cfg-agent-thinking').checked=false;el('#cfg-arbiter-thinking').checked=false;el('#cfg-gm-thinking').checked=false;
         activateProfileFromSave(name);
       }
     });
@@ -1149,13 +1163,35 @@ function renderDebugRulings(d){if(!d||!d.rulings)return;el('#debug-rulings').inn
 
 // ====== SKIP / SLEEP ======
 function doSkipTime(){
-  var curHour=Math.floor((Date.now()/1000%86400)/3600)||0;
-  fetch('/api/skip_time',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hour:((new Date()).getHours()+1)%24})})
+  el('#skip-panel').style.display='inline-flex';
+  el('#btn-skip').style.display='none';
+  el('#btn-sleep').style.display='none';
+  el('#skip-mode').value='skip_hours';el('#skip-val').value='1';el('#skip-unit').textContent='小时';
+}
+function doSkipCancel(){
+  el('#skip-panel').style.display='none';
+  el('#btn-skip').style.display='inline-block';
+  el('#btn-sleep').style.display='inline-block';
+}
+function doSkipModeChange(){
+  var m=el('#skip-mode').value;
+  if(m==='skip_hours'){el('#skip-unit').textContent='小时';el('#skip-val').value='1';el('#skip-val').style.width='28px'}
+  else{
+    el('#skip-unit').textContent='(HH:MM)';el('#skip-val').value='14:00';el('#skip-val').style.width='48px'
+  }
+}
+function doSkipConfirm(){
+  var mode=el('#skip-mode').value;var val=el('#skip-val').value.trim();
+  var body={mode:mode};
+  if(mode==='skip_hours'){body.hours=parseInt(val)||1}
+  else{
+    var parts=val.split(':');body.hour=parseInt(parts[0])||14;body.minute=parseInt(parts[1])||0
+  }
+  doSkipCancel();showLoading(true,'时间推进中...');
+  fetch('/api/skip_time',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){
-        addLog('system','时间推进至 '+d.time);
-        nextRound();
-      }
+      if(d.ok){addLog('system','时间推进至 '+d.time);nextRound()}
+      else{showLoading(false);alert(d.error||'跳过失败')}
     });
 }
 function doSleep(){

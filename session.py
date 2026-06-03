@@ -1140,27 +1140,32 @@ D. ...
                         agent.plan(self.world, "计划完成")
             self._check_time_broadcasts(old_minutes, new_minutes)
 
-    def skip_time(self, target_hour: int) -> str:
-        """跳过时间到指定整点，仅在玩家位于自己房间时可用。
-        返回中断原因或完成摘要。"""
-        from state import IntentType as _IT
-        target_minutes = target_hour * 60
-        if target_minutes <= self.world.time_minutes:
-            target_minutes += 1440
+    def skip_time(self, target_hour: int = None, mode: str = "skip_hours", hours: int = 1, hour: int = 14, minute: int = 0) -> str:
+        """跳过时间到指定整点或指定时长。
+        mode='skip_hours': 跳过 hours 小时
+        mode='until': 推进至当天的 hour:minute
+        """
+        if mode == "until":
+            target_minutes = hour * 60 + minute
+            if target_minutes <= self.world.time_minutes:
+                target_minutes += 1440
+        elif target_hour is not None:
+            # 兼容旧格式
+            target_minutes = target_hour * 60
+            if target_minutes <= self.world.time_minutes:
+                target_minutes += 1440
+        else:
+            target_minutes = self.world.time_minutes + hours * 60
+
         total = target_minutes - self.world.time_minutes
-
-        for _ in range(total // 10):
-            before = self.world.time_minutes
+        for _ in range(max(1, total // 10)):
             self._tick(10)
-
             if self.world.time_minutes >= target_minutes:
                 self.world.time_minutes = target_minutes
                 self.world.current_time = _time_string(self.world.time_minutes)
                 break
-
             if getattr(self, 'xbrdcst', None):
-                msg = self.xbrdcst
-                self.xbrdcst = None
+                msg = self.xbrdcst; self.xbrdcst = None
                 return f"skip_interrupted: {msg}"
 
         self.world.current_time = _time_string(self.world.time_minutes)
