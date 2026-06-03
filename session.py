@@ -950,8 +950,7 @@ D. ...
             raise RuntimeError(f"Agent决策失败: {e}\n{traceback.format_exc()}") from e
 
         # 2. 仲裁
-        first_delay_active = self.world.first_murder_delayed and self.world.rounds_since_last_murder < 6
-        if first_delay_active:
+        if self.world.current_day == 1:
             for aid, il in intents.items():
                 for intent in il:
                     if intent.intent_type == IntentType.ATTACK: intent.intent_type = IntentType.CONFRONT
@@ -1084,7 +1083,6 @@ D. ...
         if self.logger: self.logger.log_narrative(full_text)
 
         progress_queue.put({"type":"narrative_done","text":full_text,"options":options})
-        self._check_phase_transition()
 
         _npc_list = [{"agent_id":aid,"name":self.agents[aid].profile.name if aid in self.world.player_met_npcs else "？","affection":self.agent_states[aid].affection_map.get("player",50) if aid in self.agent_states else 50,"location":self.world.npc_locations.get(aid,""),"nearby":self.world.npc_locations.get(aid,"")==self.player_location,"alive":self.agent_states.get(aid,DEAD_NPC).alive,"emotion":self.agent_states[aid].emotional_state if aid in self.agent_states else ""} for aid in sorted(self.agents.keys())]
         _scene_label = self.scenario.get("name", self.scene_id) if self.scenario else self.scene_id
@@ -1306,13 +1304,6 @@ D. ...
         if len(f1) >= 3 and not world.floor_2_unlocked: world.floor_2_unlocked = True
         f2 = [r for r in world.explored_rooms if r in fr.get(2,[])]
         if len(f2) >= len(fr.get(2,[]))-1 and not world.floor_3_unlocked: world.floor_3_unlocked = True
-
-    def _check_phase_transition(self):
-        world = self.world
-        if world.phase == GamePhase.BLACKOUT and self.player_created and len(world.player_met_npcs) >= 3:
-            world.phase = GamePhase.UNDERCURRENT
-        if world.phase == GamePhase.UNDERCURRENT and world.difficulty != DifficultyMode.STORY and world.discovered_bodies:
-            world.phase = GamePhase.HUNTING
 
     def _check_body_discovery(self, intents: dict):
         """LLM判定尸体发现：对尸体所在房间的每个活人，根据其行动判断是否发现尸体。"""

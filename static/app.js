@@ -718,7 +718,7 @@ function doStructured(o){
 function hideActionBar(){el('#action-bar').innerHTML=''}
 function updateInfo(s){
   if(s.day)el('#game-info').textContent='第'+s.day+'天 '+s.time+(s.location?' · '+s.location:'');
-  if(s.phase)el('#difficulty-badge').textContent={blackout:'熄灯时刻',undercurrent:'暗流涌动',hunting:'猎杀时刻'}[s.phase]||s.phase;
+  if(s.phase)el('#difficulty-badge').textContent={blackout:'',undercurrent:'',hunting:''}[s.phase]||s.phase;
   if(s.floor)el('#floor-badge').textContent='L'+s.floor;
   if(s.npcs)renderNPCs(s.npcs);
   if(s.scene_name)el('#scene-label').textContent=s.scene_name;

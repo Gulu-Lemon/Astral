@@ -350,12 +350,8 @@ attack 需要周围无目击者，否则会被放弃。
 {chr(10).join(p.visible_dialogues) if p.visible_dialogues else '没有听到对话'}"""
 
     def _allowed_intents(self, phase: GamePhase) -> list[str]:
-        base = ["socialize", "explore", "rest", "confront", "isolate"]
-        if phase in (GamePhase.UNDERCURRENT, GamePhase.HUNTING):
-            base += ["stalk", "sabotage"]
-        if phase == GamePhase.HUNTING:
-            base += ["attack", "trap", "defend"]
-        return base
+        return ["socialize", "explore", "rest", "confront", "isolate",
+                "stalk", "sabotage", "attack", "trap", "defend"]
 
     def dialogue(self, context: str, speaker_name: str, content: str, speaker_id: Optional[str] = None) -> str:
         """生成对话回应 — 用于 NPC 间对话或 NPC 对玩家的回应"""

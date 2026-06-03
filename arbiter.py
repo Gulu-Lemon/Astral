@@ -78,13 +78,7 @@ class Arbiter:
         """对单个意图做出裁决"""
         ruling = Ruling(intent=intent, approved=True, success=True)
 
-        # --- 阶段审查 ---
         if intent.intent_type == IntentType.ATTACK:
-            if world.phase != GamePhase.HUNTING:
-                ruling.approved = False
-                ruling.downgraded_to = IntentType.CONFRONT
-                ruling.description = f"[黑箱/暗流期禁止致命攻击] {agent_id} 的攻击意图被压制成对峙。"
-                return ruling
             if not intent.target_id:
                 ruling.approved = False
                 ruling.description = "攻击意图无目标，视为无效。"
@@ -102,20 +96,7 @@ class Arbiter:
                 ruling.description = f"{agent_id} 准备攻击但周围有目击者（{', '.join(witnesses)}），改为对峙。"
                 return ruling
 
-        if intent.intent_type == IntentType.TRAP:
-            if world.phase != GamePhase.HUNTING:
-                ruling.approved = False
-                ruling.downgraded_to = IntentType.ISOLATE
-                ruling.description = f"[非猎杀期禁止陷阱] {agent_id} 的陷阱意图被压制。"
-                return ruling
-            # 陷阱不检查目击者
-
         if intent.intent_type == IntentType.SABOTAGE:
-            if world.phase == GamePhase.BLACKOUT:
-                ruling.approved = False
-                ruling.downgraded_to = IntentType.ISOLATE
-                ruling.description = f"[黑箱期禁止破坏行为] {agent_id} 的行为降级为冷处理。"
-                return ruling
             # 禁止彻底毁尸灭迹（道德底线/行动总会留下痕迹）
             if world.undiscovered_bodies or world.discovered_bodies:
                 actor_loc = world.npc_locations.get(agent_id, "")
@@ -129,11 +110,7 @@ class Arbiter:
                     return ruling
 
         if intent.intent_type == IntentType.DEFEND:
-            if world.phase != GamePhase.HUNTING:
-                ruling.approved = False
-                ruling.downgraded_to = IntentType.REST
-                ruling.description = f"[非猎杀期禁止防御行动] {agent_id} 的防御意图被压制为待机。"
-                return ruling
+            pass
 
         # --- 技能判定（基于游戏规则的 modulo-6 系统）---
         risk_rating = self._assess_risk(intent, agent_states, world)
