@@ -56,7 +56,7 @@ class GMNarrator:
 
     def _build_context(self, world, agent_states, player_loc, visible_rulings):
         loc_npcs = [aid for aid, aloc in world.npc_locations.items() if aloc == player_loc and aid != "player"]
-        nearby_names = [self._npc_label(aid) for aid in loc_npcs]
+        nearby_names = [self._npc_label(aid, world) for aid in loc_npcs]
         return {"day": world.current_day, "time": world.current_time, "phase": world.phase.value,
                 "location": player_loc, "nearby_npcs": nearby_names, "visible_rulings": visible_rulings,
                 "all_met": world.all_npcs_met()}
@@ -64,7 +64,7 @@ class GMNarrator:
     def _generate_narrative_and_options(self, ctx, player_action, visible_rulings, world, agent_states, player_loc, materials=""):
         rulings_desc = []
         for r in visible_rulings:
-            actor = self._npc_label(r.intent.agent_id)
+            actor = self._npc_label(r.intent.agent_id, world)
             desc = r.description
             reasoning = r.intent.reasoning
             if reasoning:
@@ -229,7 +229,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
 
         rulings_desc = []
         for r in visible_rulings:
-            actor = self._npc_label(r.intent.agent_id)
+            actor = self._npc_label(r.intent.agent_id, world)
             desc = r.description
             reasoning = r.intent.reasoning
             if reasoning:
@@ -514,11 +514,15 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
             return scenario.get("scene_tone", "")
         return ""
 
-    def _npc_label(self, agent_id):
+    def _npc_label(self, agent_id, world=None):
         if agent_id == "player":
             return f"{self.player_name or '玩家'}[player]"
         cp = self._characters.get(agent_id) if self._characters else None
-        return f"{cp.name}[{agent_id}]" if cp else agent_id
+        if not cp:
+            return agent_id
+        if world and agent_id not in world.player_met_npcs:
+            return f"{cp.appearance}[{agent_id}]"
+        return f"{cp.name}[{agent_id}]"
 
 
 @dataclass

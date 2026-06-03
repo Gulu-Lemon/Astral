@@ -666,6 +666,7 @@ function clearLog(){}
 
 function renderOptions(options){
   el('#action-bar').innerHTML='';el('#action-bar').style.display='';
+  S._lastOptions=options;
   
   // 审判调查阶段：添加证物输入
   fetch('/api/trial/state').then(function(r){return r.json()}).then(function(ts){
@@ -679,16 +680,7 @@ function renderOptions(options){
     }
   });
   if(!options||!options.length){
-    ['继续观察周围','与附近的人交谈','探索这个区域','（自定义行动）'].forEach(function(l,i){
-      var btn=document.createElement('button');btn.className='action-btn';
-      btn.textContent=l;
-      btn.onclick=function(){
-        document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
-        var t=i<3?'investigate':'custom';doStructured({label:l,type:t,target:null,room:null});hideActionBar();
-        if(t!=='custom')showLoading(true,'推演中...');
-      };
-      el('#action-bar').appendChild(btn);
-    });
+    el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">▶ 推进</button>';el('#action-bar').style.display='';
     return;
   }
   options.forEach(function(o){
@@ -761,7 +753,11 @@ function sendDialogue(){
       nextRound();
     });
 }
-function closeDialogue(){el('#dialogue-box').style.display='none';S.dialogueWith=null;S.customAction=false;S.npcDialogue=false}
+function closeDialogue(){
+  el('#dialogue-box').style.display='none';S.dialogueWith=null;
+  if(S.customAction){S.customAction=false;renderOptions(S._lastOptions)}
+  else{S.npcDialogue=false}
+}
 
 // ====== EXPLORE / INVESTIGATE ======
 function exploreRoom(room){
