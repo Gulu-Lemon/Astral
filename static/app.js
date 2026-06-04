@@ -1,9 +1,9 @@
 // Astral v0.6 Client
-var COLORS=['#58a6ff','#f0883e','#2ea043','#a371f7','#db61a2','#56d4dd','#f85149','#f7b73f','#8b949e','#3fb950','#e553b2','#79c0ff'];
+var COLORS=[];
 function el(s){return document.querySelector(s)}
 function bind(s,e,f){var node=document.querySelector(s);if(node)node.addEventListener(e,f)}
 
-var S={inPrologue:false,prologueStep:0,playersTurn:true,dialogueWith:null,npcData:[],_scene:'tianji_maze',_selectedCard:null,_cards:[],_cardWatch:null,debug:false};
+var S={inPrologue:false,prologueStep:0,playersTurn:true,dialogueWith:null,_scene:'tianji_maze',_selectedCard:null,_cards:[],_cardWatch:null,debug:false};
 
 // ====== INIT ======
 document.addEventListener('DOMContentLoaded',function(){
@@ -669,8 +669,6 @@ function nextRound(keepLog, elapsed){
     }catch(ex){}
   });
 }
-
-function clearLog(){}
 
 function renderOptions(options){
   el('#action-bar').innerHTML='';el('#action-bar').style.display='';

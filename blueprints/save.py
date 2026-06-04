@@ -16,10 +16,10 @@ def api_save():
         player_name=s.player_name, player_location=s.player_location,
         round_count=s.round_count, scene_id=s.scene_id,
         narrative_log=s.narrative_log,
-        prologue_context=list(s._prologue_context),
-        prologue_turn=s._prologue_turn,
-        post_admin_explored=s._post_admin_explored,
-        player_action_log=list(s._player_action_log),
+        prologue_context=list(s.prologue._prologue_context),
+        prologue_turn=s.prologue._prologue_turn,
+        post_admin_explored=s.prologue._post_admin_explored,
+        player_action_log=list(s.prologue._player_action_log),
         last_options=list(s.last_options) if getattr(s,'last_options',None) else [],
     )
     return jsonify({"ok": True, "filename": fname, "slots": s.save_mgr.list_slots()})
@@ -34,10 +34,10 @@ def api_save_auto():
         player_name=s.player_name, player_location=s.player_location,
         round_count=s.round_count, scene_id=s.scene_id,
         narrative_log=s.narrative_log,
-        prologue_context=list(s._prologue_context),
-        prologue_turn=s._prologue_turn,
-        post_admin_explored=s._post_admin_explored,
-        player_action_log=list(s._player_action_log),
+        prologue_context=list(s.prologue._prologue_context),
+        prologue_turn=s.prologue._prologue_turn,
+        post_admin_explored=s.prologue._post_admin_explored,
+        player_action_log=list(s.prologue._player_action_log),
         last_options=list(s.last_options) if getattr(s,'last_options',None) else [],
     )
     return jsonify({"ok": True, "slots": s.save_mgr.list_slots()})
@@ -59,10 +59,10 @@ def api_load(filename: str):
     s = _sess.session
     s.player_name, s.player_location, s.round_count, loaded_scene, act_log, s.last_options = s.save_mgr.apply_loaded_state(
         data, s.world, s.agents, s.agent_states)
-    s._prologue_context = list(data.get("prologue_context", []))
-    s._prologue_turn = data.get("prologue_turn", 0)
-    s._post_admin_explored = data.get("post_admin_explored", False)
-    s._player_action_log = act_log
+    s.prologue._prologue_context = list(data.get("prologue_context", []))
+    s.prologue._prologue_turn = data.get("prologue_turn", 0)
+    s.prologue._post_admin_explored = data.get("post_admin_explored", False)
+    s.prologue._player_action_log = act_log
     s.player_created = True
     if "player" in s.agent_states:
         s.agent_states["player"].name = s.player_name
