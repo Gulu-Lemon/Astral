@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded',function(){
            .then(function(r){return r.json()}).then(function(d){
              addLog('narrative',d.description||'（自由行动）');
              el('#dialogue-box').style.display='none';S.customAction=false;nextRound(false,d.elapsed_minutes);
-           }).catch(function(){showLoading(false);el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">继续</button>';el('#action-bar').style.display=''});
+           }).catch(function(){showLoading(false);el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,0)">继续</button>';el('#action-bar').style.display=''});
       }else{sendDialogue()}
     }
   });
@@ -562,7 +562,7 @@ function prologueFinish(){
       addLog('narrative','序章结束。新的故事即将开始……');
       if(s.npcs&&s.npcs.length) renderNPCs(s.npcs);
       updateInfo(s);
-      nextRound();
+      nextRound(false,60);
     });
   });
 }
@@ -592,10 +592,13 @@ function getAffectionLabel(v){
 
 // ====== GAME LOOP ======
 function nextRound(keepLog, elapsed){
-  S._actionElapsed=(elapsed===undefined)?60:elapsed;
+  S._actionElapsed=(elapsed===undefined)?0:elapsed;
   showLoading(true,'推演中...');
   var es=new EventSource('/api/round?elapsed='+S._actionElapsed);
-  es.addEventListener('round_start',function(e){});
+  var _timeLabel='';
+  es.addEventListener('round_start',function(e){
+    try{var d=JSON.parse(e.data);_timeLabel='第'+d.day+'天 '+d.time;el('#loading-time').textContent=_timeLabel}catch(ex){}
+  });
   es.addEventListener('agent_done',function(e){
     try{var d=JSON.parse(e.data);el('#loading-progress').textContent='Agent '+d.completed+'/'+d.total;}catch(ex){}
   });
@@ -651,7 +654,7 @@ function nextRound(keepLog, elapsed){
     showLoading(false);
     try{var d=JSON.parse(e.data);if(d.message){addLog('system','推演出错：'+d.message)}else{addLog('system','推演出错，请重试。')}}catch(ex){addLog('system','推演出错，请重试。')}
     try{es.close()}catch(ex){}
-    el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">重试</button>';el('#action-bar').style.display='';
+    el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,0)">重试</button>';el('#action-bar').style.display='';
   });
   es.addEventListener('ending_triggered',function(e){
     try{
@@ -685,7 +688,7 @@ function renderOptions(options){
     }
   });
   if(!options||!options.length){
-    el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">▶ 推进</button>';el('#action-bar').style.display='';
+    el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,60)">▶ 推进</button>';el('#action-bar').style.display='';
     return;
   }
   options.forEach(function(o){
@@ -709,7 +712,7 @@ function doStructured(o){
   else if(t==='explore'&&room){exploreRoom(room)}
   else if(t==='investigate'&&o.label){doAction({action:o.label})}
   else if(t==='custom'){showLoading(false);S.customAction=true;el('#dialogue-box').style.display='block';el('#dialogue-target').textContent='自由行动';el('#dialogue-hints').innerHTML='';el('#input-message').value='';el('#input-message').placeholder='输入你想做的事情...';el('#input-message').focus()}
-  else{nextRound()}
+  else{console.error('[doStructured] 未匹配类型:',o);nextRound(false,0)}
 }
 
 function hideActionBar(){el('#action-bar').innerHTML=''}
@@ -759,7 +762,7 @@ function sendDialogue(){
         nextRound(false,d.elapsed_minutes);
       }else{
         alert(d.error||'对话失败');
-        el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">继续</button>';
+        el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,0)">继续</button>';
         el('#action-bar').style.display='';
       }
     });
@@ -775,7 +778,7 @@ function exploreRoom(room){
   return fetch('/api/explore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:room})})
     .then(function(r){return r.json()}).then(function(d){
       if(d.ok){addLog('narrative',d.description);renderMap(d);nextRound(false,d.elapsed_minutes)}
-      else{alert(d.error||'移动失败');el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">继续</button>';el('#action-bar').style.display='';showLoading(false)}
+      else{alert(d.error||'移动失败');el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,0)">继续</button>';el('#action-bar').style.display='';showLoading(false)}
     });
 }
 
@@ -783,7 +786,7 @@ function doAction(data){
   return fetch('/api/investigate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
     .then(function(r){return r.json()}).then(function(d){
       if(d.ok){addLog('narrative',d.description);nextRound(false,d.elapsed_minutes)}
-      else{alert(d.error||'行动失败');el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound()">继续</button>';el('#action-bar').style.display='';showLoading(false)}
+      else{alert(d.error||'行动失败');el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,0)">继续</button>';el('#action-bar').style.display='';showLoading(false)}
     });
 }
 
@@ -852,7 +855,7 @@ function trialProceed(){
     }else if(d.phase==='execution'){
       addLog('execution',d.text||'');
       hideTrialBanner();
-      nextRound();
+      nextRound(false,60);
     }
   }).catch(function(){showLoading(false);});
 }
@@ -927,7 +930,7 @@ function submitVote(){
     el('#vote-panel').style.display='none';
     if(d.ok){
       addLog('trial','投票结果：'+d.text);
-      if(d.phase==='execution'){addLog('execution',d.text||'');hideTrialBanner();nextRound();}
+      if(d.phase==='execution'){addLog('execution',d.text||'');hideTrialBanner();nextRound(false,60);}
     }
   });
 }
@@ -1198,7 +1201,7 @@ function doSkipConfirm(){
   doSkipCancel();showLoading(true,'时间推进中...');
   fetch('/api/skip_time',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json()}).then(function(d){
-      if(d.ok){addLog('system','时间推进至 '+d.time);nextRound()}
+      if(d.ok){addLog('system','时间推进至 '+d.time);nextRound(false,0)}
       else{showLoading(false);alert(d.error||'跳过失败')}
     });
 }
@@ -1207,7 +1210,7 @@ function doSleep(){
   fetch('/api/sleep',{method:'POST'}).then(function(r){return r.json()})
     .then(function(d){
       showLoading(false);
-      if(d.ok){addLog('system',d.result);nextRound();}
+      if(d.ok){addLog('system',d.result);nextRound(false,0);}
     });
 }
 

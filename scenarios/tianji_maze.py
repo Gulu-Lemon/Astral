@@ -48,11 +48,14 @@ FLOOR_ROOMS = {
 }
 
 FLOOR_TRANSITIONS = {
-    0: {1: ["通往上层的石梯"], -1: ["通往地下仓库的暗门"]},
-    1: {0: ["通往下层的石梯"], 2: ["盘旋而上的楼梯"]},
-    2: {1: ["盘旋而下的楼梯"], 3: ["窄陡的螺旋楼梯"]},
-    3: {2: ["窄陡的螺旋楼梯"]},
-    -1: {0: ["通往营地的暗门"]},
+    "起始营地": {"to_floor": 1, "from_floor": 0},
+    "训练室": {"to_floor": 0, "from_floor": 1},
+    "忏悔室": {"to_floor": -1, "from_floor": 1},
+    "地下仓库": {"to_floor": 0, "from_floor": -1},
+    "食堂": {"to_floor": 2, "from_floor": 1},
+    "中庭花园": {"to_floor": 1, "from_floor": 2},
+    "浴室": {"to_floor": 3, "from_floor": 2},
+    "钟楼": {"to_floor": 2, "from_floor": 3},
 }
 
 # ====== GM 系统提示词 ======

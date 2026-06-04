@@ -135,7 +135,7 @@ gm.py           ← Agent C (server.py: run_round, prologue)
 | 文件 | 行数 | 角色 |
 |------|------|------|
 | `server.py` | ~34 | Flask 入口 + Blueprint 注册 |
-| `session.py` | ~1143 | GameSession 编排器（从 server.py 提取） |
+| `session.py` | ~1826 | GameSession 编排器（从 server.py 提取） |
 | `blueprints/prologue.py` | ~60 | 序章 8 个端点 |
 | `blueprints/game.py` | ~200 | 游戏主循环 + dialogue + explore |
 | `blueprints/trial.py` | ~40 | 审判 4 个端点 |
@@ -418,9 +418,18 @@ static/        ← 浏览器直接加载，通过 SSE/API 与 Agent C 通信
 - Agent B：`_npc_label` 加 `world` 参数，未认识 NPC 用外貌描述；`_extract_json` 截断 JSON 修复；`generate_options` max_tokens 512→1024
 - Agent D：skip 选择面板 + 思考模式设置面板 + addLog 定义补全 + fallback 选项简化 + 叉按钮恢复 action bar + phase 标签清空
 
+### 2026-06-04 — v1.5 审计修复
+
+**跨 Agent 变更：PROTOCOL.md 全面同步 + 3 个致命 Bug 修复**
+- Agent A + C：`save_manager.apply_loaded_state()` 补全 4 个缺失字段（ending_triggered/ending_chosen/ending_resolved/player_is_murderer）
+- Agent C：`session.py:run_round()` 补全 `first_delay_active` 变量定义（防 NameError）
+- Agent D：`tianji_maze.py` FLOOR_TRANSITIONS 修复为 room-based 格式（旧 floor-number 格式导致迷宫楼层过渡完全失效）
+- Agent C：`_time_string()` 修复 22-23 点显示为 "晚上10点" 而非 "晚上22点"
+- PROTOCOL.md：§1 流式事件 + §2 缺失端点 + §3 版本号/字段/类型 + §5 IntentType 表格 + 移除过时 §6 三阶段 + §10 行号
+
 ---
 
-*最后更新：2026-06-03 | 版本 v1.4*
+*最后更新：2026-06-04 | 版本 v1.5*
 
 ---
 

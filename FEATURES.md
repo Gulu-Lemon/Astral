@@ -2,7 +2,7 @@
 
 ## 核心引擎
 
-- **`state.py`**：13 个数据类（WorldState / AgentState / Intent / Ruling / Event / Evidence / TrialState / ActionStep / ActionPlan / EvidenceItem / EndingBranch / EndingConfig / AffectionEntry / BodyRecord）和 3 个枚举（GamePhase / DifficultyMode / IntentType 含 SEARCH 等新类型），全部带完整的 to_dict / from_dict 序列化
+- **`state.py`**：14 个数据类（WorldState / AgentState / Intent / Ruling / Event / Evidence / TrialState / ActionStep / ActionPlan / EvidenceItem / EndingBranch / EndingConfig / AffectionEntry / BodyRecord）和 3 个枚举（GamePhase / DifficultyMode / IntentType 含 SEARCH 等新类型），全部带完整的 to_dict / from_dict 序列化
 - **`llm.py`**：LLMClient，线程安全的 httpx 连接池，chat() / chat_json() / chat_stream() 流式方法，从 LLM 响应中提取 JSON（支持 markdown 去除、多种回退解析）
 - **`agent_engine.py`**：NPCAgent 类，含 perceive / decide / plan / ensure_plan / dialogue / update_affection / update_threat；ActionPlan 调度引擎；Player→No.13 身份抹除翻译；Perception 快照数据类
 - **`arbiter.py`**：Arbiter 类，process_round → detect_conflicts → rule_on_intent → apply_rulings 管线；计划冲突检测（detect_plan_conflicts）；基于阶段的权限控制；目击者检测；风险评估骰子系统；好感度/威胁度裁定修改

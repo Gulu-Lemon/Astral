@@ -160,6 +160,10 @@ class SaveManager:
         world.cursed_npc = wd.get("cursed_npc", "")
         world.atmosphere = wd.get("atmosphere", "")
         world.last_narrative_summary = wd.get("last_narrative_summary", "")
+        world.ending_triggered = wd.get("ending_triggered", False)
+        world.ending_chosen = wd.get("ending_chosen", "")
+        world.ending_resolved = wd.get("ending_resolved", False)
+        world.player_is_murderer = wd.get("player_is_murderer", False)
         trial_data = wd.get("active_trial")
         if trial_data:
             world.active_trial = TrialState.from_dict(trial_data)

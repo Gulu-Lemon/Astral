@@ -47,6 +47,8 @@ def _time_string(minutes: int) -> str:
     minute = minutes % 60
     if hour < 6 or hour >= 22:
         label = "晚上"
+        if hour >= 22:
+            hour = hour - 12
     elif hour == 12:
         label = "中午"
     elif hour < 12:
@@ -81,7 +83,8 @@ class GameSession:
         self.world = WorldState()
         self.agents: dict[str, NPCAgent] = {}
         self.agent_states: dict[str, AgentState] = {}
-        scene_chars = self.scenario.get("characters", {}) if self.scenario else {}
+        self.npc_ids = self.scenario.get("npc_ids", [f"No.{i:02d}" for i in range(1,13)])
+        scene_chars = self._resolve_characters()
         self.arbiter = Arbiter(self.arbiter_llm, characters=scene_chars)
         self.gm = GMNarrator(self.gm_llm, scene_id=scene_id, characters=scene_chars)
         self.save_mgr = SaveManager()
@@ -91,11 +94,10 @@ class GameSession:
         self.player_age = "16"
         self.player_appearance = ""
         self.round_count = 0
-        self.npc_ids = self.scenario.get("npc_ids", [f"No.{i:02d}" for i in range(1,13)])
         self.last_narrative = None
         self.last_options = []
         self.narrative_log: list[dict] = []
-        self._init_agents()
+        self._init_agents(scene_chars)
 
     def _load_llm_config(self):
         ok = _aal(self.llm, self.agent_llm, self.gm_llm)
@@ -130,14 +132,9 @@ class GameSession:
             os.remove(old)
         except: pass
 
-    def _init_agents(self):
-        init_aff = 25 if self.world.difficulty == DifficultyMode.WITCH else 15
-        if self.scene_id != "tianji_maze":
-            self.world.floor_2_unlocked = True
-            self.world.floor_3_unlocked = True
-
-        # 尝试从 NPC角色库 加载富角色卡
-        scene_chars = self.scenario.get("characters", {}) if self.scenario else {}
+    def _resolve_characters(self) -> dict:
+        """加载场景硬编码角色 → 尝试用 NPC_cards 富角色卡覆盖 → 返回最终角色字典"""
+        scene_chars = dict(self.scenario.get("characters", {}) or {})
         if scene_chars:
             scene_name = self.scenario.get("name", "") if self.scenario else ""
             if scene_name:
@@ -145,13 +142,20 @@ class GameSession:
                 from characters import from_rich_card
                 lib_cards = load_all_npc_library_cards(scene_name, self.npc_ids)
                 if lib_cards:
-                    enriched = dict(scene_chars)  # 复制
                     for aid, card in lib_cards.items():
                         try:
-                            enriched[aid] = from_rich_card(card, agent_id=aid)
+                            scene_chars[aid] = from_rich_card(card, agent_id=aid)
                         except Exception:
                             pass
-                    scene_chars = enriched
+        return scene_chars
+
+    def _init_agents(self, scene_chars=None):
+        if scene_chars is None:
+            scene_chars = self._resolve_characters()
+        init_aff = 25 if self.world.difficulty == DifficultyMode.WITCH else 15
+        if self.scene_id != "tianji_maze":
+            self.world.floor_2_unlocked = True
+            self.world.floor_3_unlocked = True
 
         for aid in self.npc_ids:
             agent = NPCAgent(aid, self.agent_llm, characters=scene_chars, player_name=self.player_name)
@@ -940,8 +944,10 @@ D. ...
         self.round_count += 1
         self.world.global_tick += 1
         self._advance_time(elapsed_minutes)
+        if elapsed_minutes >= 60:
+            self._log("system", f"round_start elapsed={elapsed_minutes}min")
         self.world.npc_locations["player"] = self.player_location
-        progress_queue.put({"type":"round_start","round":self.round_count})
+        progress_queue.put({"type":"round_start","round":self.round_count,"day":self.world.current_day,"time":self.world.current_time})
         self._check_floor_unlock()
         self.world.atmosphere = self._atmosphere()
         self._settle_player_affection()
@@ -986,6 +992,7 @@ D. ...
 
         self.world.rounds_since_last_murder += 1
         murder_events = []
+        first_delay_active = self.world.current_day == 1 and self.world.first_murder_delayed
         for r in rulings:
             if r.intent.intent_type in (IntentType.ATTACK, IntentType.TRAP) and r.success and not first_delay_active:
                 victim = r.intent.target_id

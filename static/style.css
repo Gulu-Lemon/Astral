@@ -334,6 +334,7 @@ body {
 @keyframes spin { to{transform:rotate(360deg)} }
 #loading-text { color:var(--text); font-size:14px; }
 #loading-progress { color:var(--text2); font-size:12px; }
+#loading-time { color:var(--text2); font-size:11px; opacity:0.8; margin-top:2px; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width:5px; }
