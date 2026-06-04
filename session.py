@@ -130,20 +130,21 @@ class GameSession:
         except: pass
 
     def _resolve_characters(self) -> dict:
-        """加载场景硬编码角色 → 尝试用 NPC_cards 富角色卡覆盖 → 返回最终角色字典"""
+        """加载场景角色 → NPC_cards 富角色卡覆盖 → 返回最终角色字典"""
         scene_chars = dict(self.scenario.get("characters", {}) or {})
+        scene_name = self.scenario.get("name", "") if self.scenario else ""
+        if scene_name:
+            from card_manager import load_all_npc_library_cards
+            from characters import from_rich_card
+            lib_cards = load_all_npc_library_cards(scene_name, self.npc_ids)
+            if lib_cards:
+                for aid, card in lib_cards.items():
+                    try:
+                        scene_chars[aid] = from_rich_card(card, agent_id=aid)
+                    except Exception:
+                        pass
         if scene_chars:
-            scene_name = self.scenario.get("name", "") if self.scenario else ""
-            if scene_name:
-                from card_manager import load_all_npc_library_cards
-                from characters import from_rich_card
-                lib_cards = load_all_npc_library_cards(scene_name, self.npc_ids)
-                if lib_cards:
-                    for aid, card in lib_cards.items():
-                        try:
-                            scene_chars[aid] = from_rich_card(card, agent_id=aid)
-                        except Exception:
-                            pass
+            self.scenario["characters"] = scene_chars
         return scene_chars
 
     def _init_agents(self, scene_chars=None):

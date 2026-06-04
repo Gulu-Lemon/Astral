@@ -3,8 +3,6 @@
 """
 from __future__ import annotations
 
-from .shared_characters import MAZE_HOLIDAY_CHARACTERS
-
 SCENE_ID = "tianji_maze"
 SCENE_NAME = "魔法少女的天际迷宫"
 GM_NAME = "管理员"
@@ -13,7 +11,7 @@ SCENE_TONE = "石制建筑的神秘迷宫。烛光壁炉，羊皮纸卷。角色
 START_ROOM = "起始营地"
 NPC_IDS = [f"No.{i:02d}" for i in range(1, 13)]
 
-CHARACTERS = dict(MAZE_HOLIDAY_CHARACTERS)
+CHARACTERS = {}
 
 # ====== 房间数据 ======
 ROOM_FEATURES = {

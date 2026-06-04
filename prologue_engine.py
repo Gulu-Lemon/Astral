@@ -172,11 +172,11 @@ class PrologueEngine:
 
     # ── safe LLM call ──
 
-    def _safe_llm(self, llm, logger, world, msgs, sys, temp=1.0, mt=2048):
+    def _safe_llm(self, llm, logger, scenario, world, msgs, sys, temp=1.0, mt=2048):
         try:
             text = llm.chat(messages=msgs, system=sys, temperature=temp, max_tokens=mt)
             if world and world.prologue_step < 7:
-                self._validate_prologue_output(llm, logger, world, text)
+                self._validate_prologue_output(llm, logger, scenario, world, text)
             return text
         except Exception as e1:
             if len(sys) > 500:
@@ -430,6 +430,14 @@ D. ..."""
         elif self._prologue_phase == "introduction":
             story_prefix = self._player_action_prefix()
             scene_ctx = self._scene_context(scenario, world, player_location)
+            # 构建带名字和魔法的 NPC 名册（与 _npc_profile_roster 不同，后者不含姓名）
+            npc_info_lines = []
+            for aid in sorted(scenario.get("characters", {}).keys()):
+                cp = scenario["characters"][aid]
+                magic_short = (cp.magic or "")[:60]
+                appear_short = (cp.appearance or "")[:40]
+                npc_info_lines.append(f"[{aid}] {cp.name} | 魔法:{magic_short} | {appear_short}")
+            npc_roster = "\n".join(npc_info_lines)
             prompt = f"""{scene_ctx}
 
 {story_prefix}玩家阅读规则后，做出了反应。
@@ -440,14 +448,14 @@ D. ..."""
 
 轮到{player_name}时，她也自然地接上了自己的名字和魔法。
 
-NPC 档案如下（外貌→名字→魔法），请让每个人都开口：
-{self._npc_profile_roster(scenario)}
+以下是每个人的真实姓名和魔法，请严格按照这些数据，让每个人都开口介绍自己：
+{npc_roster}
 
 重要：
 - 按 No.01→No.12 顺序依次让每人发声。每人一句话即可（名字 + 魔法/特点）。
 - 对话要自然，不要像填表格。有人开朗，有人害羞，有人只说半句就被打断。
 - 玩家{player_name}也报出自己的名字和魔法（{world.player_magic}）。
-- 严禁编造不在名册中的角色。
+- 名字和魔法必须使用上面列出的真实数据，不得编造。
 - 300-400字。
 - 末尾输出4个选项：【选项】A. ... B. ... C. ... D. ..."""
             text = self._safe_llm(llm, logger, scenario, world,

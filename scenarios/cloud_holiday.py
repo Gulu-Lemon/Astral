@@ -1,4 +1,4 @@
-﻿"""
+"""
 云端假期场景包 — 云端花园大酒店
 """
 from __future__ import annotations
@@ -12,10 +12,8 @@ SCENE_TONE = "云端之上的大酒店。窗外是紫色云海，内部是华丽
 START_ROOM = "迎宾大厅"
 NPC_IDS = [f"No.{i:02d}" for i in range(1, 13)]
 
-# ====== 角色库（与天际迷宫共享，从 shared_characters 导入） ======
-from .shared_characters import MAZE_HOLIDAY_CHARACTERS
-
-CHARACTERS = dict(MAZE_HOLIDAY_CHARACTERS)
+# ====== 角色库（运行时由 NPC_cards 加载，此处为空占位）======
+CHARACTERS = {}
 
 # ====== 房间数据 ======
 ROOM_FEATURES = {
