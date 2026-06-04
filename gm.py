@@ -120,7 +120,7 @@ class GMNarrator:
 
         # 玩家认识/未认识的 NPC
         known, unknown = [], []
-        for aid in world.npc_locations:
+        for aid in loc_npcs:
             if aid == "player": continue
             st = agent_states.get(aid)
             if not st or not st.alive: continue
@@ -281,7 +281,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
         rel_str = "\n".join(rel_lines) if rel_lines else "（暂无特殊关系）"
 
         known, unknown = [], []
-        for aid in world.npc_locations:
+        for aid in loc_npcs:
             if aid == "player": continue
             st = agent_states.get(aid)
             if not st or not st.alive: continue
@@ -401,7 +401,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
         rel_str = "\n".join(rel_lines) if rel_lines else "（暂无特殊关系）"
 
         known, unknown = [], []
-        for aid in world.npc_locations:
+        for aid in loc_npcs:
             if aid == "player": continue
             st = agent_states.get(aid)
             if not st or not st.alive: continue

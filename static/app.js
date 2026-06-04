@@ -562,7 +562,7 @@ function prologueFinish(){
       addLog('narrative','序章结束。新的故事即将开始……');
       if(s.npcs&&s.npcs.length) renderNPCs(s.npcs);
       updateInfo(s);
-      nextRound(false,60);
+      nextRound(false,0);
     });
   });
 }
@@ -761,9 +761,9 @@ function sendDialogue(){
         fetch('/api/state').then(function(r){return r.json()}).then(function(s){renderNPCs(s.npcs)});
         nextRound(false,d.elapsed_minutes);
       }else{
-        alert(d.error||'对话失败');
-        el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,0)">继续</button>';
-        el('#action-bar').style.display='';
+        addLog('system',d.error||'对话失败');
+        el('#dialogue-box').style.display='none';S.dialogueWith=null;S.npcDialogue=false;
+        if(S._lastOptions)renderOptions(S._lastOptions);else el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,0)">继续</button>';
       }
     });
 }

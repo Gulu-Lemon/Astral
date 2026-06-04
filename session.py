@@ -502,8 +502,46 @@ D. ..."""
             if not options: options = ["认真记在心里","和旁边的人低声讨论","表面平静，内心盘算","觉得荒谬/不以为然"]
             self._player_action_log.append("管理员登场，规则宣布。")
             self.world.prologue_step = 6
-            self._prologue_phase = "grouping"
+            self._prologue_phase = "introduction"
             return {"text": narrative, "options": options, "step": self.world.prologue_step, "rule": rule}
+        elif self._prologue_phase == "introduction":
+            # === Phase "introduction"：No.01 组织全员自我介绍 ===
+            story_prefix = self._player_action_prefix()
+            scene_ctx = self._scene_context()
+            prompt = f"""{scene_ctx}
+
+{story_prefix}玩家阅读规则后，做出了反应。
+
+就在这时，No.01——一位富有领导气质的少女——站了出来，拍了拍手，用冷静但有温度的声音说道：「好了，各位。规则大家都看清了吧。在分开探索之前，我们先互相认识一下。我叫菊池露娜，我的魔法是【秩序之声】。」
+
+在她的带动下，其他 NPC 也依次做了简短的自我介绍——每人一句话，报出自己的名字，或许加一两句简短的特点。有些人大方爽快，有些人支支吾吾，有些人只说了名字就没话了。场面有点拘谨，但露娜尽力让氛围不那么僵硬。
+
+轮到{self.player_name}时，她也自然地接上了自己的名字和魔法。
+
+NPC 档案如下（外貌→名字→魔法），请让每个人都开口：
+{self._npc_profile_roster()}
+
+重要：
+- 按 No.01→No.12 顺序依次让每人发声。每人一句话即可（名字 + 魔法/特点）。
+- 对话要自然，不要像填表格。有人开朗，有人害羞，有人只说半句就被打断。
+- 玩家{self.player_name}也报出自己的名字和魔法（{self.world.player_magic}）。
+- 严禁编造不在名册中的角色。
+- 300-400字。
+- 末尾输出4个选项：【选项】A. ... B. ... C. ... D. ..."""
+            text = self._safe_llm(self._prologue_context+[{"role":"user","content":prompt}], self._pgm(), 1.0, 3072)
+            self._prologue_truncate_context()
+            self._prologue_context.append({"role":"user","content":prompt})
+            self._prologue_context.append({"role":"assistant","content":text})
+            options = self._parse_prologue_options(text)
+            narrative = self._strip_prologue_options(text)
+            if not options: options = ["和大家打个招呼","观察每个人的反应","保持安静","在心里记下每个人的特征"]
+            self._player_action_log.append("全员自我介绍。")
+            # 自我介绍后，玩家认识了所有人
+            for aid in self.npc_ids:
+                self.world.player_met_npcs.add(aid)
+            self.world.prologue_step = 6
+            self._prologue_phase = "grouping"
+            return {"text": narrative, "options": options, "step": self.world.prologue_step}
         elif self._prologue_phase == "grouping":
             # === Phase "grouping"：分组场景 ===
             explore_template = self._scene_prompt("explore", default="")
@@ -581,6 +619,8 @@ D. ...
 
     def prologue_finish(self):
         self.world.prologue_step = 7
+        for aid in self.npc_ids:
+            self.world.player_met_npcs.add(aid)
         self._prologue_summarize()
         self._prologue_bridge()
         return True
