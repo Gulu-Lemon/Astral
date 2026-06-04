@@ -122,6 +122,7 @@ function hideMainTabs(){
 
 function restoreGameUI(){
   el('#settings-tab').style.display='none';
+  if(S.inPrologue){el('#prologue-screen').style.display='block';return}
   el('#npc-panel').style.display='block';
   el('#narrative-content').style.display='';
   el('#map-strip').style.display='flex';
