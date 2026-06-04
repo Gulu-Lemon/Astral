@@ -249,6 +249,8 @@ class GameSession:
         )
 
     # === Dialogue Suggestions ===
+
+    def _gen_dialogue_suggestions(self, agent_id: str, player_name: str = "") -> list[str]:
         if agent_id not in self.agents: return ["你好。","你还好吗？","能聊聊吗？"]
         agent = self.agents[agent_id]
         profile = agent.profile

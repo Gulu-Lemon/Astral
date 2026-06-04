@@ -430,33 +430,32 @@ D. ..."""
         elif self._prologue_phase == "introduction":
             story_prefix = self._player_action_prefix()
             scene_ctx = self._scene_context(scenario, world, player_location)
-            # 构建带名字和魔法的 NPC 名册（与 _npc_profile_roster 不同，后者不含姓名）
+            # 构建带名字和特征的 NPC 名册
             npc_info_lines = []
             for aid in sorted(scenario.get("characters", {}).keys()):
                 cp = scenario["characters"][aid]
-                magic_short = (cp.magic or "")[:60]
-                appear_short = (cp.appearance or "")[:40]
-                npc_info_lines.append(f"[{aid}] {cp.name} | 魔法:{magic_short} | {appear_short}")
+                appear_short = (cp.appearance or "")[:60]
+                person_short = (cp.personality or "")[:60]
+                npc_info_lines.append(f"[{aid}] {cp.name} | {appear_short} | {person_short}")
             npc_roster = "\n".join(npc_info_lines)
             prompt = f"""{scene_ctx}
 
 {story_prefix}玩家阅读规则后，做出了反应。
 
-就在这时，No.01——一位富有领导气质的少女——站了出来，拍了拍手，用冷静但有温度的声音说道：「好了，各位。规则大家都看清了吧。在分开探索之前，我们先互相认识一下。我叫菊池露娜，我的魔法是【秩序之声】。」
+就在这时，No.01——一位富有领导气质的少女——站了出来，拍了拍手，用冷静但有温度的声音说道：「好了，各位。之前的事情已经够混乱了，至少先互相认识一下吧。我叫菊池露娜。」
 
-在她的带动下，其他 NPC 也依次做了简短的自我介绍——每人一句话，报出自己的名字，或许加一两句简短的特点。有些人大方爽快，有些人支支吾吾，有些人只说了名字就没话了。场面有点拘谨，但露娜尽力让氛围不那么僵硬。
+在她的带动下，其他 NPC 也依次做了简短的自我介绍。有些人大方爽快，多说了几句自己的情况；有些人支支吾吾，只报了个名字就没话了。场面有点拘谨，但露娜站在中间尽力让氛围不那么僵硬。
 
-轮到{player_name}时，她也自然地接上了自己的名字和魔法。
+轮到{player_name}时，她也自然地接上了自己的名字。
 
-以下是每个人的真实姓名和魔法，请严格按照这些数据，让每个人都开口介绍自己：
+以下是每个人的真实姓名和性格特征，请严格按照这些数据，让每个人都开口：
 {npc_roster}
 
 重要：
-- 按 No.01→No.12 顺序依次让每人发声。每人一句话即可（名字 + 魔法/特点）。
-- 对话要自然，不要像填表格。有人开朗，有人害羞，有人只说半句就被打断。
-- 玩家{player_name}也报出自己的名字和魔法（{world.player_magic}）。
-- 名字和魔法必须使用上面列出的真实数据，不得编造。
-- 300-400字。
+- 按 No.01→No.12 顺序依次让每人发声。每人可以说1-3句话（包含姓名，剩下的按照各自的性格可以选择简要介绍）。
+- 对话要自然。有人开朗大方，会多说几句自己的特点；有人害羞内向，只说名字和一句简短的话就缩回去了。
+- 玩家{player_name}也报出自己的名字。
+- 名字必须使用上面列出的真实数据，不得编造。
 - 末尾输出4个选项：【选项】A. ... B. ... C. ... D. ..."""
             text = self._safe_llm(llm, logger, scenario, world,
                 self._prologue_context+[{"role":"user","content":prompt}], self._pgm(scenario), 1.0, 3072)
