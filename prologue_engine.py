@@ -426,11 +426,10 @@ D. ..."""
             self._prologue_phase = "introduction"
             return {"text": narrative, "options": options, "step": world.prologue_step, "rule": rule}
 
-        # Phase "introduction"
+        # Phase "introduction" — 自我介绍 + 自然分组（合并）
         elif self._prologue_phase == "introduction":
             story_prefix = self._player_action_prefix()
             scene_ctx = self._scene_context(scenario, world, player_location)
-            # 构建带名字和特征的 NPC 名册
             npc_info_lines = []
             for aid in sorted(scenario.get("characters", {}).keys()):
                 cp = scenario["characters"][aid]
@@ -448,15 +447,17 @@ D. ..."""
 
 轮到{player_name}时，她也自然地接上了自己的名字。
 
-以下是每个人的真实姓名和性格特征，请严格按照这些数据，让每个人都开口：
+自我介绍结束后，有人顺势提议：「既然大家都认识了，不如分头探索这个场所吧，效率更高。」其他人立刻开始讨论——有人想和刚才聊得投机的熟人一组，有人坚持独自行动，有人试图拉拢看起来靠谱的人。在几句争论后，逐渐形成了2-3个小组，另有1-2人选择独自探索。
+
+以下是每个人的真实姓名和性格特征，请严格按照这些数据，让每个人都开口，并自然地完成分组：
 {npc_roster}
 
 重要：
-- 按 No.01→No.12 顺序依次让每人发声。每人可以说1-3句话（包含姓名，剩下的按照各自的性格可以选择简要介绍）。
-- 对话要自然。有人开朗大方，会多说几句自己的特点；有人害羞内向，只说名字和一句简短的话就缩回去了。
-- 玩家{player_name}也报出自己的名字。
-- 名字必须使用上面列出的真实数据，不得编造。
-- 末尾输出4个选项：【选项】A. ... B. ... C. ... D. ..."""
+- 前半段：按 No.01→No.12 顺序依次让每人自我介绍。每人1-3句话（含姓名，剩下按性格自由发挥）。
+- 后半段：介绍完毕后自然地过渡到分组讨论，形成2-3个小组。{player_name}可以选择跟随某一组或独自探索。
+- 对话要自然。有人开朗大方，有人害羞内向。禁止编造新名字。
+- 末尾输出4个选项（包含分组选择）：【选项】A. ... B. ... C. ... D. ...
+  其中A/B/C建议是"跟随XX那组"或"和XX一起"，D是"独自探索"或"先观察一下"。"""
             text = self._safe_llm(llm, logger, scenario, world,
                 self._prologue_context+[{"role":"user","content":prompt}], self._pgm(scenario), 1.0, 3072)
             self._prologue_truncate_context()
@@ -464,58 +465,13 @@ D. ..."""
             self._prologue_context.append({"role":"assistant","content":text})
             options = self._parse_prologue_options(text, log_func)
             narrative = self._strip_prologue_options(text)
-            if not options: options = ["和大家打个招呼","观察每个人的反应","保持安静","在心里记下每个人的特征"]
-            self._player_action_log.append("全员自我介绍。")
+            if not options: options = ["跟随第一组","跟随第二组","跟随第三组","独自探索"]
+            self._player_action_log.append("全员自我介绍并分组。")
+            for aid in sorted(scenario.get("characters", {}).keys()):
+                world.player_met_npcs.add(aid)
             world.prologue_step = 6
-            self._prologue_phase = "grouping"
-            return {"text": narrative, "options": options, "step": world.prologue_step}
-
-        # Phase "grouping"
-        elif self._prologue_phase == "grouping":
-            explore_template = self._scene_prompt(scenario, "explore", default="")
-            if explore_template:
-                try:
-                    prompt = explore_template.format(
-                        story_prefix=story_prefix,
-                        scene_context=scene_ctx,
-                        player_name=player_name,
-                        npc_profiles=self._npc_profile_roster(scenario),
-                    )
-                except (KeyError, ValueError):
-                    explore_template = ""
-            if not explore_template:
-                prompt = f"""{scene_ctx}
-
-{story_prefix}玩家对规则做出了反应。
-
-随后，一位有领导气质的NPC站了出来，提议大家分组探索这个场所以提高效率。其他人立刻开始争论——有人想和熟人一组，有人坚持独自行动，有人试图拉拢强者。在争论中逐渐形成了2-3个小组，另有1-2人选择独自探索。
-
-NPC 档案如下，请严格按其外貌、性格、行为特征撰写。旁白描述时用外貌特征称呼尚未自我介绍的 NPC，但 NPC 在争论和分组时自然交谈、互报姓名是正常行为：
-{self._npc_profile_roster(scenario)}
-
-重要约束：严格按照【场景基调】描写环境和分组探索方式。禁止编造不存在的区域。
-
-同一组的成员在争论后会进行简短的自我介绍——自然地写出1-2句互报姓名和基本情况的对话。用外貌特征引入角色，通过对话揭示姓名。
-
-末尾生成4个选项：【选项】
-A. ...
-B. ...
-C. ...
-D. ...
-300-400字。"""
             self._prologue_phase = "chosen"
-        text = self._safe_llm(llm, logger, scenario, world,
-            self._prologue_context+[{"role":"user","content":prompt}], self._pgm(scenario), 1.0, 3072)
-        self._prologue_truncate_context()
-        self._prologue_context.append({"role":"user","content":prompt})
-        self._prologue_context.append({"role":"assistant","content":text})
-        options = self._parse_prologue_options(text, log_func)
-        narrative = self._strip_prologue_options(text)
-        if not options: options = ["继续观察","与附近的人交谈","仔细思考","等待事态发展"]
-        self._player_action_log.append(f"玩家选择了：{player_choice}")
-        if world.prologue_step == 6:
             return {"text": narrative, "options": options, "step": world.prologue_step}
-        return {"text": narrative, "options": options, "step": world.prologue_step}
 
     def generate_explore_scene(self, llm, logger, scenario, world, player_name: str) -> dict:
         self._post_admin_explored = True
@@ -560,9 +516,9 @@ D. ...
             return
         try:
             summary = llm.chat(
-                messages=[{"role":"user","content":"将以下序章剧情压缩为一段200-300字的连贯摘要，用作下一章的'前情提要'。用叙述语气，不是要点列表。\n\n" + "\n\n".join(prologue_msgs)}],
-                system="你是故事编辑。简洁、连贯。",
-                temperature=0.7, max_tokens=512,
+                messages=[{"role":"user","content":"将以下序章剧情写为一段连贯的前情提要。按时间顺序叙述关键事件：谁说了什么、谁和谁互动了、玩家的选择与反应、形成的初步关系。保留细节但不冗余。用第二人称叙述语气。\n\n" + "\n\n".join(prologue_msgs)}],
+                system="你是故事编辑。连贯、有细节。",
+                temperature=0.7, max_tokens=2048,
             )
             world.last_narrative_summary = summary.strip()
         except Exception:
