@@ -544,14 +544,28 @@ class GameSession:
         return f"skipped_to: {_time_string(target_minutes)}"
 
     def sleep_until_morning(self) -> str:
-        """睡觉到次日上午 7:00，只在房间内可用。不因敲门中断。"""
-        next_7 = 7 * 60
-        current = self.world.time_minutes
-        if current >= next_7:
-            self.world.current_day += 1
-        self.world.time_minutes = next_7
-        self.world.current_time = _time_string(next_7)
-        self._apply_daily_curse()
+        """睡觉到次日上午 7:00。只在可睡眠的房间可用。不因敲门/广播中断。"""
+        # 检查是否在可睡眠的房间
+        room_feats = (self.scenario or {}).get("room_features", {}).get(self.player_location, [])
+        can_sleep = any("房间" in f.get("name", "") or "床" in f.get("name", "")
+                        or "套房" in f.get("name", "") or "宿舍" in f.get("name", "")
+                        or "包厢" in f.get("name", "") or "石室" in f.get("name", "")
+                        for f in room_feats)
+        if not can_sleep:
+            return "error: 这里不适合睡觉。请回到自己的房间。"
+
+        target = 7 * 60
+        if target <= self.world.time_minutes:
+            target += 1440
+        while self.world.time_minutes < target:
+            chunk = min(10, target - self.world.time_minutes)
+            self._tick(chunk)
+            if self.world.time_minutes >= 1440:
+                self.world.time_minutes -= 1440
+                self.world.current_day += 1
+                self._apply_daily_curse()
+            self.xbrdcst = None  # 睡觉不因广播中断
+        self.world.current_time = _time_string(self.world.time_minutes)
         return f"睡到第{self.world.current_day}天早上7点"
 
     def _broadcast_event(self, hour: int):

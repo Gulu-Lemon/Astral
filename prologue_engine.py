@@ -442,13 +442,17 @@ D. ..."""
                 person_short = (cp.personality or "")[:60]
                 npc_info_lines.append(f"[{aid}] {cp.name} | {appear_short} | {person_short}")
             npc_roster = "\n".join(npc_info_lines)
+            n01 = scenario.get("characters", {}).get("No.01")
+            n01_name = n01.name if n01 else "No.01"
+            n01_person = (n01.personality or "一位少女")[:40]
+            n01_given = n01_name.split()[-1] if n01 and " " in (n01.name or "") else n01_name
             prompt = f"""{scene_ctx}
 
 {story_prefix}玩家阅读规则后，做出了反应。
 
-就在这时，No.01——一位富有领导气质的少女——站了出来，拍了拍手，用冷静但有温度的声音说道：「好了，各位。之前的事情已经够混乱了，至少先互相认识一下吧。我叫菊池露娜。」
+就在这时，No.01——{n01_name}——站了出来，拍了拍手，用冷静但有温度的声音说道：「好了，各位。规则大家都看清了吧。在分开探索之前，我们先互相认识一下。我叫{n01_name}。」
 
-在她的带动下，其他 NPC 也依次做了简短的自我介绍。有些人大方爽快，多说了几句自己的情况；有些人支支吾吾，只报了个名字就没话了。场面有点拘谨，但露娜站在中间尽力让氛围不那么僵硬。
+在她的带动下，其他 NPC 也依次做了简短的自我介绍。有些人大方爽快，多说了几句自己的情况；有些人支支吾吾，只报了个名字就没话了。场面有点拘谨，但{n01_given}站在中间尽力让氛围不那么僵硬。
 
 轮到{player_name}时，她也自然地接上了自己的名字。
 

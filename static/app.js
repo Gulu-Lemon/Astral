@@ -596,7 +596,7 @@ function renderNPCs(npcs){
     var near=n.nearby?'<span class="nearby-marker">&#9679; 附近</span>':'';
     var emotion=n.emotion||'';
     var deadStyle=!n.alive?'style="opacity:.3"':'';
-    return '<div class="npc-card" onclick="S.npcDialogue=true;talkToNPC(\''+escHtml(n.agent_id)+'\')" '+deadStyle+'>'
+    return '<div class="npc-card" data-nearby="'+(n.nearby?'1':'0')+'" onclick="S.npcDialogue=true;talkToNPC(\''+escHtml(n.agent_id)+'\')" '+deadStyle+'>'
       +'<div class="npc-name">'+escHtml(n.name)+' '+near+'</div>'
       +(emotion?'<div class="npc-emotion">'+escHtml(emotion)+'</div>':'')
       +'<div class="npc-location">'+escHtml(n.location||'')+'</div>'
@@ -625,9 +625,12 @@ function nextRound(keepLog, elapsed){
   });
   es.addEventListener('arbiter_start',function(e){el('#loading-progress').textContent='仲裁中...'});
   es.addEventListener('arbiter_done',function(e){el('#loading-progress').textContent='叙述中...'});
-  var _streamDiv=null;
+  var _streamDiv=null,_lastScroll=0;
   es.addEventListener('narrative_start',function(e){
     showLoading(false);
+    var sep=document.createElement('div');
+    sep.className='round-sep';sep.style.cssText='border-top:1px solid var(--border);margin:12px 0;opacity:.5';
+    el('#story-log').appendChild(sep);
     _streamDiv=document.createElement('div');
     _streamDiv.className='log-block log-narrative';
     _streamDiv.style.whiteSpace='pre-wrap';_streamDiv.style.lineHeight='1.8';
@@ -635,7 +638,10 @@ function nextRound(keepLog, elapsed){
   });
   es.addEventListener('narrative_chunk',function(e){
     var d=JSON.parse(e.data);
-    if(_streamDiv){_streamDiv.textContent+=d.text;el('#story-log').scrollTop=el('#story-log').scrollHeight}
+    if(_streamDiv){_streamDiv.textContent+=d.text;
+      var now=Date.now();
+      if(now-_lastScroll>100){el('#story-log').scrollTop=el('#story-log').scrollHeight;_lastScroll=now}
+    }
   });
   es.addEventListener('options_start',function(e){
     el('#action-bar').innerHTML='<span style="color:var(--text2);font-size:12px;">正在生成选项……</span>';el('#action-bar').style.display='';
@@ -749,6 +755,11 @@ function updateInfo(s){
 
 // ====== DIALOGUE ======
 function talkToNPC(aid){
+  var card=document.querySelector('.npc-card[onclick*="'+aid+'"]');
+  if(card&&card.dataset.nearby==='0'){
+    addLog('system','这个人不在这里。');
+    return;
+  }
   el('#dialogue-box').style.display='block';
   S.dialogueWith=aid;
   el('#dialogue-target').textContent='与 '+aid+' 对话';
@@ -1217,9 +1228,9 @@ function doSkipCancel(){
 }
 function doSkipModeChange(){
   var m=el('#skip-mode').value;
-  if(m==='skip_hours'){el('#skip-unit').textContent='小时';el('#skip-val').value='1';el('#skip-val').style.width='28px'}
+  if(m==='skip_hours'){el('#skip-unit').textContent='小时';el('#skip-val').value='1';el('#skip-val').style.width='28px';el('#skip-val').maxLength=2}
   else{
-    el('#skip-unit').textContent='(HH:MM)';el('#skip-val').value='14:00';el('#skip-val').style.width='48px'
+    el('#skip-unit').textContent='(HH:MM)';el('#skip-val').value='14:00';el('#skip-val').style.width='48px';el('#skip-val').maxLength=5
   }
 }
 function doSkipConfirm(){
@@ -1241,8 +1252,16 @@ function doSleep(){
   fetch('/api/sleep',{method:'POST'}).then(function(r){return r.json()})
     .then(function(d){
       showLoading(false);
-      if(d.ok){addLog('system',d.result);nextRound(false,0);}
-    });
+      if(d.ok){
+        if(d.result&&d.result.startsWith('error:')){
+          addLog('system',d.result.replace('error: ',''));
+          el('#action-bar').innerHTML='<button class="action-btn" onclick="nextRound(false,0)">继续</button>';
+          el('#action-bar').style.display='';
+        }else{
+          addLog('system',d.result);nextRound(false,0);
+        }
+      }
+    }).catch(function(){showLoading(false);});
 }
 
 function showEndingBanner(d){
