@@ -440,7 +440,7 @@ function startWithCard(){
 // ====== PROLOGUE ======
 function showPrologueInput(p,btn){el('#prologue-input').style.display='flex';el('#prologue-choices').style.display='none';var f=el('#prologue-field');f.value='';f.placeholder=p;f.focus();if(btn)el('#prologue-btn').textContent=btn}
 function hidePrologueInput(){el('#prologue-input').style.display='none';el('#prologue-choices').style.display='none'}
-function restorePrologueUI(step, phase){
+function restorePrologueUI(step, phase, options){
   S.inPrologue=true;S.prologueStep=step;
   el('#prologue-screen').style.display='block';
   el('#prologue-field').dataset.step=step;
@@ -451,9 +451,13 @@ function restorePrologueUI(step, phase){
     else if(step===2){el('#prologue-field').placeholder='描述你的魔法...';el('#prologue-btn').textContent='完成'}
     else if(step===3){el('#prologue-input').style.display='none';showPrologueOptions(['剧情模式(A)','正常模式(B)','魔女模式(C)'])}
   }else{
-    el('#prologue-input').style.display='flex';
-    el('#prologue-btn').textContent='确定';
-    el('#prologue-field').placeholder='输入你的选择或行动...';
+    if(options&&options.length){
+      showPrologueOptions(options);
+    }else{
+      el('#prologue-input').style.display='flex';
+      el('#prologue-btn').textContent='确定';
+      el('#prologue-field').placeholder='输入你的选择或行动...';
+    }
     addPrologueText('（已恢复序章进度）');
   }
 }
@@ -708,7 +712,7 @@ function renderOptions(options){
   }
   options.forEach(function(o){
     var btn=document.createElement('button');btn.className='action-btn';
-    btn.textContent=(o.label||o.text||'行动');
+    btn.textContent=(o.type==='custom'?'（自定义行动）':(o.label||o.text||'行动'));
     btn.onclick=function(){
       if(o.type==='dialogue'){
         document.querySelectorAll('.action-btn').forEach(function(b){b.disabled=true});
@@ -1059,7 +1063,7 @@ function doLoadSave(filename){
         el('#story-log').style.display='none';
         el('#action-bar').style.display='none';
         el('#prologue-field').dataset.step=d.prologue_step;
-        restorePrologueUI(d.prologue_step, d.prologue_phase);
+        restorePrologueUI(d.prologue_step, d.prologue_phase, d.prologue_options);
         return;
       }
       el('#npc-panel').style.display='block';

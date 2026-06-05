@@ -17,6 +17,7 @@ class PrologueEngine:
         self._post_admin_explored: bool = False
         self._player_action_log: list[str] = []
         self._prologue_phase: str = "free"
+        self._last_options: list[str] = []
 
     # ── context helpers ──
 
@@ -295,6 +296,7 @@ D.选项内容"""
         options = self._parse_prologue_options(text, logger)
         narrative = self._strip_prologue_options(text)
         if not options: options = ["与附近的人交谈","仔细观察周围环境","静静等待事态发展","查看周围人的反应"]
+        self._last_options = options
         self._prologue_context.append({"role":"user","content":initial_prompt})
         self._prologue_context.append({"role":"assistant","content":text})
         self._player_action_log.append(f"进入场景：{player_location}。")
@@ -329,6 +331,7 @@ D.选项内容"""
             self._prologue_context.append({"role":"assistant","content":text})
             narrative = self._strip_prologue_options(text)
             options = ["进入游戏"]
+            self._last_options = options
             self._player_action_log.append(f"玩家选择了：{player_choice}")
             world.prologue_step = 6
             return {"text": narrative, "options": options, "step": 6}
@@ -386,6 +389,7 @@ NPC 档案如下，请严格按其外貌、性格、行为特征撰写：
             options = self._parse_prologue_options(text, log_func)
             narrative = self._strip_prologue_options(text)
             if not options: options = ["与附近的人交谈","仔细观察周围环境","静静等待事态发展","查看周围人的反应"]
+            self._last_options = options
             self._player_action_log.append(f"玩家选择了：{player_choice}")
             return {"text": narrative, "options": options, "step": world.prologue_step}
 
@@ -421,6 +425,7 @@ D. ..."""
             narrative = self._strip_prologue_options(text)
             options = self._parse_prologue_options(text, log_func)
             if not options: options = ["认真记在心里","和旁边的人低声讨论","表面平静，内心盘算","觉得荒谬/不以为然"]
+            self._last_options = options
             self._player_action_log.append("管理员登场，规则宣布。")
             world.prologue_step = 6
             self._prologue_phase = "introduction"
@@ -466,6 +471,7 @@ D. ..."""
             options = self._parse_prologue_options(text, log_func)
             narrative = self._strip_prologue_options(text)
             if not options: options = ["跟随第一组","跟随第二组","跟随第三组","独自探索"]
+            self._last_options = options
             self._player_action_log.append("全员自我介绍并分组。")
             for aid in sorted(scenario.get("characters", {}).keys()):
                 world.player_met_npcs.add(aid)
@@ -489,6 +495,7 @@ D. ..."""
         if not options: options = ["跟随第一组","跟随第二组","跟随第三组","独自探索"]
         self._player_action_log.append("分组探索场景生成。")
         options.append("进入游戏")
+        self._last_options = options
         return {"text": narrative, "options": options, "step": 6}
 
     # ═════════════════════════════════════

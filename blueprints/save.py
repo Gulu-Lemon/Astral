@@ -21,6 +21,7 @@ def api_save():
         prologue_phase=s.prologue._prologue_phase,
         post_admin_explored=s.prologue._post_admin_explored,
         player_action_log=list(s.prologue._player_action_log),
+        prologue_options=list(s.prologue._last_options),
         last_options=list(s.last_options) if getattr(s,'last_options',None) else [],
     )
     return jsonify({"ok": True, "filename": fname, "slots": s.save_mgr.list_slots()})
@@ -40,6 +41,7 @@ def api_save_auto():
         prologue_phase=s.prologue._prologue_phase,
         post_admin_explored=s.prologue._post_admin_explored,
         player_action_log=list(s.prologue._player_action_log),
+        prologue_options=list(s.prologue._last_options),
         last_options=list(s.last_options) if getattr(s,'last_options',None) else [],
     )
     return jsonify({"ok": True, "slots": s.save_mgr.list_slots()})
@@ -66,6 +68,7 @@ def api_load(filename: str):
     s.prologue._prologue_phase = data.get("prologue_phase", "free")
     s.prologue._post_admin_explored = data.get("post_admin_explored", False)
     s.prologue._player_action_log = act_log
+    s.prologue._last_options = list(data.get("prologue_options", []))
     s.player_created = True
     if "player" in s.agent_states:
         s.agent_states["player"].name = s.player_name
@@ -82,6 +85,7 @@ def api_load(filename: str):
         "round": s.round_count,
         "prologue_step": s.world.prologue_step,
         "prologue_phase": s.prologue._prologue_phase,
+        "prologue_options": s.prologue._last_options,
         "npcs": _npc_info(),
         "narrative_log": data.get("narrative_log", []),
         "options": s.last_options if getattr(s,'last_options',None) else [],

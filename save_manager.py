@@ -39,6 +39,7 @@ class SaveManager:
         post_admin_explored: bool = False,
         player_action_log: list = None,
         last_options: list = None,
+        prologue_options: list = None,
     ) -> str:
         """保存存档。slot="auto" → autosave.json；否则用 _next_filename() 生成新文件名。返回文件名。"""
         data = {
@@ -58,6 +59,7 @@ class SaveManager:
             "post_admin_explored": post_admin_explored,
             "player_action_log": player_action_log or [],
             "last_options": last_options or [],
+            "prologue_options": prologue_options or [],
         }
         if slot == "auto":
             fname = "autosave.json"
