@@ -9,3 +9,6 @@ dist/
 *.exe
 *.rar
 cards/
+.scratch/
+docs/agents/
+许愿书.md

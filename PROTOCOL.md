@@ -1,4 +1,4 @@
-# PROTOCOL.md — Astral 跨 Agent 契约文档 v1.0.0-alpha
+# PROTOCOL.md — Astral 跨 Agent 契约文档 v1.0.1-alpha
 
 > 本文档定义 Agent A/B/C/D 之间的所有接口契约。
 > 任何修改若涉及跨 Agent 边界，必须**先更新本文档，再修改代码**。
@@ -348,4 +348,4 @@ personality: 性格描述（可选）
 
 ---
 
-*最后更新：2026-06-05 | 版本 v1.0.0-alpha*
+*最后更新：2026-06-05 | 版本 v1.0.1-alpha*
