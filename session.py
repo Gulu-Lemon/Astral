@@ -211,7 +211,7 @@ class GameSession:
 
     def prologue_step_1_mirror(self, name, age, appearance):
         return self.prologue.step_1_mirror(
-            self.llm, self.logger, self.scenario, self.world, self.agent_states, self._log,
+            self.llm, self._log, self.scenario, self.world, self.agent_states, self._log,
             name, age, appearance,
             lambda n, a, ap: (
                 setattr(self, 'player_name', n),
@@ -222,22 +222,22 @@ class GameSession:
         )
 
     def prologue_step_2_magic(self, magic):
-        return self.prologue.step_2_magic(self.llm, self.logger, self.scenario, self.world, magic)
+        return self.prologue.step_2_magic(self.llm, self._log, self.scenario, self.world, magic)
 
     def prologue_step_3_difficulty(self, mode):
-        return self.prologue.step_3_difficulty(self.llm, self.logger, self.scenario, self.world, mode)
+        return self.prologue.step_3_difficulty(self.llm, self._log, self.scenario, self.world, mode)
 
     def prologue_step_4_camp(self):
         self.player_created = True
         self.player_location = self.scenario.get("start_room", "")
         return self.prologue.step_4_camp(
-            self.llm, self.logger, self.scenario, self.world,
+            self.llm, self._log, self.scenario, self.world,
             self.player_name, self.player_location
         )
 
     def prologue_continue(self, player_choice: str):
         return self.prologue.continue_(
-            self.llm, self.logger, self.scenario, self.world, self.scene_id,
+            self.llm, self._log, self.scenario, self.world, self.scene_id,
             self.player_name, self.player_location, self._log,
             player_choice
         )

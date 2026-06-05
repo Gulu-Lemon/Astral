@@ -110,13 +110,13 @@ class PrologueEngine:
         opts = []
         marker = re.search(r'【选项】', text)
         section = text[marker.start():] if marker else text
-        for m in re.finditer(r'([A-D])[\.\s、：:)]\s*(.+?)(?=\n\s*[A-D][\.\s、：:)]\s*|\Z)', section, re.DOTALL):
+        for m in re.finditer(r'([A-D])[\.\s、：:)）]\s*(.+?)(?=\n\s*[A-D][\.\s、：:)）]\s*|\Z)', section, re.DOTALL):
             opt_text = m.group(2).strip()
             if len(opt_text) > 1: opts.append(opt_text)
         if len(opts) >= 2:
             return opts
         tail = text[-500:]
-        for m in re.finditer(r'^[A-D][\.\s、：:)]\s*(.+)$', tail, re.MULTILINE):
+        for m in re.finditer(r'^[A-D][\.\s、：:)）]\s*(.+)$', tail, re.MULTILINE):
             opt_text = m.group(1).strip()
             if len(opt_text) > 1: opts.append(opt_text)
         if len(opts) >= 2:
@@ -173,11 +173,11 @@ class PrologueEngine:
 
     # ── safe LLM call ──
 
-    def _safe_llm(self, llm, logger, scenario, world, msgs, sys, temp=1.0, mt=2048):
+    def _safe_llm(self, llm, log_func, scenario, world, msgs, sys, temp=1.0, mt=2048):
         try:
             text = llm.chat(messages=msgs, system=sys, temperature=temp, max_tokens=mt)
             if world and world.prologue_step < 7:
-                self._validate_prologue_output(llm, logger, scenario, world, text)
+                self._validate_prologue_output(llm, log_func, scenario, world, text)
             return text
         except Exception as e1:
             if len(sys) > 500:
