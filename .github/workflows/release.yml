@@ -7,8 +7,6 @@ on:
 
 jobs:
   build:
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +36,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path cards -Force | Out-Null
-          pyinstaller --onedir --name Astral --clean `
+          pyinstaller --onedir --name Astral --noconfirm `
             --add-data "static;static" `
             --add-data "scenarios;scenarios" `
             --add-data "blueprints;blueprints" `
@@ -73,22 +71,39 @@ jobs:
         shell: pwsh
         run: |
           $name = "Astral-windows-${{ github.ref_name }}"
-          Compress-Archive -Path dist\Astral\* -DestinationPath "dist\$name.zip"
-          echo "asset=dist/$name.zip" >> $env:GITHUB_ENV
-          echo "asset_name=$name.zip" >> $env:GITHUB_ENV
+          Compress-Archive -Path dist\Astral\* -DestinationPath $name.zip
+          echo "asset=$name.zip" >> $env:GITHUB_ENV
 
       - name: Package (macOS)
         if: matrix.name == 'macos'
         run: |
           name="Astral-macos-${{ github.ref_name }}"
-          hdiutil create -volname Astral -srcfolder dist/Astral.app -ov -format UDZO "dist/${name}.dmg"
-          echo "asset=dist/${name}.dmg" >> $GITHUB_ENV
-          echo "asset_name=${name}.dmg" >> $GITHUB_ENV
+          hdiutil create -volname Astral -srcfolder dist/Astral.app -ov -format UDZO "${name}.dmg"
+          echo "asset=${name}.dmg" >> $GITHUB_ENV
 
-      - name: Upload to Release
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-${{ github.ref_name }}
+          path: ${{ env.asset }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.asset }}
+          files: packages/*
           name: ${{ github.ref_name }}
           prerelease: true
           generate_release_notes: true
