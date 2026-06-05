@@ -23,7 +23,7 @@ app.register_blueprint(meta_bp)
 
 def main():
     print("=" * 50)
-    print("  Astral v1.0.1-alpha — 多 Agent 互动小说引擎")
+    print("  Astral v1.0.2-alpha — 多 Agent 互动小说引擎")
     print("  3 场景 · 12 NPC · 47 API · 6 Blueprints")
     print("  http://127.0.0.1:8640")
     print("=" * 50)

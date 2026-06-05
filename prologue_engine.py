@@ -1,7 +1,7 @@
 """
 PrologueEngine — 序章 7 步流程 + 桥接 + 自我介绍
 
-从 session.py 提取，v1.5
+从 session.py 提取，v1.0.2-alpha
 """
 from __future__ import annotations
 import re
