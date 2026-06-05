@@ -70,16 +70,14 @@ jobs:
         if: matrix.name == 'windows'
         shell: pwsh
         run: |
-          $name = "Astral-windows-${{ github.ref_name }}"
-          Compress-Archive -Path dist\Astral\* -DestinationPath $name.zip
-          echo "asset=$name.zip" >> $env:GITHUB_ENV
+          Compress-Archive -Path dist\Astral\* -DestinationPath "Astral-windows-${{ github.ref_name }}.zip"
+          echo "asset=Astral-windows-${{ github.ref_name }}.zip" >> $env:GITHUB_ENV
 
       - name: Package (macOS)
         if: matrix.name == 'macos'
         run: |
-          name="Astral-macos-${{ github.ref_name }}"
-          hdiutil create -volname Astral -srcfolder dist/Astral.app -ov -format UDZO "${name}.dmg"
-          echo "asset=${name}.dmg" >> $GITHUB_ENV
+          hdiutil create -volname Astral -srcfolder dist/Astral.app -ov -format UDZO "Astral-macos-${{ github.ref_name }}.dmg"
+          echo "asset=Astral-macos-${{ github.ref_name }}.dmg" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
