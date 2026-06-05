@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
@@ -52,7 +53,7 @@ jobs:
         if: matrix.name == 'macos'
         run: |
           mkdir -p cards
-          pyinstaller --onedir --name Astral --clean \
+          pyinstaller --onedir --name Astral --noconfirm \
             --add-data "static:static" \
             --add-data "scenarios:scenarios" \
             --add-data "blueprints:blueprints" \
