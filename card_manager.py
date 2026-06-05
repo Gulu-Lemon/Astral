@@ -4,9 +4,14 @@
 """
 import os
 import re
+import sys
 from typing import Optional
 
-CARDS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cards")
+_BASE = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    _BASE = os.path.dirname(sys.executable)
+
+CARDS_DIR = os.path.join(_BASE, "cards")
 
 
 def ensure_dir():
@@ -374,7 +379,7 @@ def get_cards_mtime() -> float:
     return total
 
 
-_NPC_LIBRARY_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "NPC_cards")
+_NPC_LIBRARY_ROOT = os.path.join(_BASE, "NPC_cards")
 
 
 def load_npc_library_card(scene_name: str, agent_id: str) -> Optional[dict]:

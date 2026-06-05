@@ -3,9 +3,14 @@ API 配置管理 — config_profiles.json 多配置支持
 """
 import json
 import os
+import sys
 from typing import Optional
 
-PROFILES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config_profiles.json")
+_BASE = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    _BASE = os.path.dirname(sys.executable)
+
+PROFILES_PATH = os.path.join(_BASE, "config_profiles.json")
 
 
 def _ensure():

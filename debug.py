@@ -11,7 +11,11 @@ import traceback
 from datetime import datetime
 from functools import wraps
 
-LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+_BASE = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    _BASE = os.path.dirname(sys.executable)
+
+LOG_DIR = os.path.join(_BASE, "logs")
 
 
 def _ensure_dir():

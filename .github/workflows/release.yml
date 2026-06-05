@@ -1,0 +1,84 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            package: zip
+          - os: macos-latest
+            name: macos
+            package: dmg
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller (Windows)
+        if: matrix.name == 'windows'
+        run: |
+          pyinstaller --onedir --name Astral --clean `
+            --add-data "static;static" `
+            --add-data "scenarios;scenarios" `
+            --add-data "blueprints;blueprints" `
+            --add-data "cards;cards" `
+            --add-data "NPC_cards;NPC_cards" `
+            --hidden-import scenarios.tianji_maze `
+            --hidden-import scenarios.cloud_holiday `
+            --hidden-import scenarios.snow_train `
+            --collect-all flask `
+            --collect-all httpx `
+            server.py
+
+      - name: Build with PyInstaller (macOS)
+        if: matrix.name == 'macos'
+        run: |
+          pyinstaller --onedir --name Astral --clean \
+            --add-data "static:static" \
+            --add-data "scenarios:scenarios" \
+            --add-data "blueprints:blueprints" \
+            --add-data "cards:cards" \
+            --add-data "NPC_cards:NPC_cards" \
+            --hidden-import scenarios.tianji_maze \
+            --hidden-import scenarios.cloud_holiday \
+            --hidden-import scenarios.snow_train \
+            --collect-all flask \
+            --collect-all httpx \
+            server.py
+
+      - name: Package Windows zip
+        if: matrix.name == 'windows'
+        run: |
+          Compress-Archive -Path dist\Astral\* -DestinationPath dist\Astral-windows-${{ github.ref_name }}.zip
+
+      - name: Package macOS dmg
+        if: matrix.name == 'macos'
+        run: |
+          hdiutil create -volname Astral -srcfolder dist/Astral -ov -format UDZO dist/Astral-macos-${{ github.ref_name }}.dmg
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Astral-windows-*.zip
+            dist/Astral-macos-*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,11 +2,25 @@
 
 AI 主持的魔法少女互动小说引擎 · 12 NPC 并发模拟 · 3 个剧本 · 47 个 API
 
-> **要求 Python 3.12+**（使用了 f-string 内嵌 `\n` 转义等新语法）
+---
+
+## 下载安装（玩家）
+
+1. 打开 [Releases](https://github.com/Gulu-Lemon/Astral/releases) 页面
+2. 下载对应平台的文件：
+   - Windows: `Astral-windows-*.zip`
+   - macOS: `Astral-macos-*.dmg`
+3. Windows 用户解压后双击 `Astral.exe`；macOS 用户挂载 dmg 后拖入 Applications
+4. 浏览器自动打开 http://127.0.0.1:8640
+5. 首次使用会自动弹出 API 设置 → 添加 API 配置
+
+> 存档、角色卡、配置均保存在程序同级目录下，不会丢失。
 
 ---
 
-## 快速开始
+## 快速开始（开发者）
+
+> **要求 Python 3.12+**
 
 ```bash
 pip install -r requirements.txt

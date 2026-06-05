@@ -4,13 +4,18 @@
 from __future__ import annotations
 import json
 import os
+import sys
 import time
 from datetime import datetime
 from typing import Optional, Union
 
 from state import WorldState, AgentState, Event, GamePhase, DifficultyMode, TrialState, BodyRecord
 
-SAVES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saves")
+_BASE = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    _BASE = os.path.dirname(sys.executable)
+
+SAVES_DIR = os.path.join(_BASE, "saves")
 
 
 def _safe_scene_label(scene_id: str) -> str:
