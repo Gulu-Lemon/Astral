@@ -466,7 +466,7 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
             result = self._llm.chat_json(
                 messages=[{"role": "user", "content": prompt}],
                 system=gm_prompt,
-                temperature=0.7, max_tokens=1024,
+                temperature=0.7, max_tokens=4096,
             )
             raw_options = result.get("options", []) or []
             if not raw_options:

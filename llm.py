@@ -235,7 +235,7 @@ class LLMClient:
         except (json.JSONDecodeError, Exception):
             pass
 
-        raise ValueError(f"无法从响应中提取 JSON: {raw[:200]}")
+        raise ValueError(f"LLM 返回了空响应或非 JSON 内容，无法提取: {raw[:200]}")
 
     def close(self):
         if hasattr(self._local, "client") and self._local.client is not None:

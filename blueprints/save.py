@@ -18,6 +18,7 @@ def api_save():
         narrative_log=s.narrative_log,
         prologue_context=list(s.prologue._prologue_context),
         prologue_turn=s.prologue._prologue_turn,
+        prologue_phase=s.prologue._prologue_phase,
         post_admin_explored=s.prologue._post_admin_explored,
         player_action_log=list(s.prologue._player_action_log),
         last_options=list(s.last_options) if getattr(s,'last_options',None) else [],
@@ -36,6 +37,7 @@ def api_save_auto():
         narrative_log=s.narrative_log,
         prologue_context=list(s.prologue._prologue_context),
         prologue_turn=s.prologue._prologue_turn,
+        prologue_phase=s.prologue._prologue_phase,
         post_admin_explored=s.prologue._post_admin_explored,
         player_action_log=list(s.prologue._player_action_log),
         last_options=list(s.last_options) if getattr(s,'last_options',None) else [],
@@ -61,6 +63,7 @@ def api_load(filename: str):
         data, s.world, s.agents, s.agent_states)
     s.prologue._prologue_context = list(data.get("prologue_context", []))
     s.prologue._prologue_turn = data.get("prologue_turn", 0)
+    s.prologue._prologue_phase = data.get("prologue_phase", "free")
     s.prologue._post_admin_explored = data.get("post_admin_explored", False)
     s.prologue._player_action_log = act_log
     s.player_created = True
@@ -77,6 +80,8 @@ def api_load(filename: str):
         "time": s.world.current_time,
         "location": s.player_location,
         "round": s.round_count,
+        "prologue_step": s.world.prologue_step,
+        "prologue_phase": s.prologue._prologue_phase,
         "npcs": _npc_info(),
         "narrative_log": data.get("narrative_log", []),
         "options": s.last_options if getattr(s,'last_options',None) else [],

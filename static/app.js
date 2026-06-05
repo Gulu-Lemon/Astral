@@ -440,6 +440,23 @@ function startWithCard(){
 // ====== PROLOGUE ======
 function showPrologueInput(p,btn){el('#prologue-input').style.display='flex';el('#prologue-choices').style.display='none';var f=el('#prologue-field');f.value='';f.placeholder=p;f.focus();if(btn)el('#prologue-btn').textContent=btn}
 function hidePrologueInput(){el('#prologue-input').style.display='none';el('#prologue-choices').style.display='none'}
+function restorePrologueUI(step, phase){
+  S.inPrologue=true;S.prologueStep=step;
+  el('#prologue-screen').style.display='block';
+  el('#prologue-field').dataset.step=step;
+  if(step<4){
+    el('#prologue-input').style.display='flex';
+    el('#prologue-choices').style.display='none';
+    if(step===1){el('#prologue-field').placeholder='外貌特征...';el('#prologue-btn').textContent='下一步'}
+    else if(step===2){el('#prologue-field').placeholder='描述你的魔法...';el('#prologue-btn').textContent='完成'}
+    else if(step===3){el('#prologue-input').style.display='none';showPrologueOptions(['剧情模式(A)','正常模式(B)','魔女模式(C)'])}
+  }else{
+    el('#prologue-input').style.display='flex';
+    el('#prologue-btn').textContent='确定';
+    el('#prologue-field').placeholder='输入你的选择或行动...';
+    addPrologueText('（已恢复序章进度）');
+  }
+}
 function addPrologueText(t){if(!t)return;var b=el('#prologue-text');b.innerHTML+=t+'<br>';b.scrollTop=b.scrollHeight}
 function clearPrologueText(){el('#prologue-text').innerHTML=''}
 
@@ -1033,6 +1050,18 @@ function doLoadSave(filename){
     if(d.ok){
       el('#save-panel').style.display='none';
       hideMainTabs();
+      S.inPrologue=(d.prologue_step<7);
+      S.prologueStep=d.prologue_step||0;
+      if(S.inPrologue){
+        el('#prologue-screen').style.display='block';
+        el('#npc-panel').style.display='none';
+        el('#map-strip').style.display='none';
+        el('#story-log').style.display='none';
+        el('#action-bar').style.display='none';
+        el('#prologue-field').dataset.step=d.prologue_step;
+        restorePrologueUI(d.prologue_step, d.prologue_phase);
+        return;
+      }
       el('#npc-panel').style.display='block';
       el('#map-strip').style.display='flex';
       el('#story-log').style.display='block';
