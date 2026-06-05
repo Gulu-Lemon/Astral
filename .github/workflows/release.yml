@@ -12,10 +12,8 @@ jobs:
         include:
           - os: windows-latest
             name: windows
-            package: zip
           - os: macos-latest
             name: macos
-            package: dmg
 
     runs-on: ${{ matrix.os }}
 
@@ -34,7 +32,9 @@ jobs:
 
       - name: Build with PyInstaller (Windows)
         if: matrix.name == 'windows'
+        shell: pwsh
         run: |
+          New-Item -ItemType Directory -Path cards -Force | Out-Null
           pyinstaller --onedir --name Astral --clean `
             --add-data "static;static" `
             --add-data "scenarios;scenarios" `
@@ -51,6 +51,7 @@ jobs:
       - name: Build with PyInstaller (macOS)
         if: matrix.name == 'macos'
         run: |
+          mkdir -p cards
           pyinstaller --onedir --name Astral --clean \
             --add-data "static:static" \
             --add-data "scenarios:scenarios" \
@@ -64,21 +65,27 @@ jobs:
             --collect-all httpx \
             server.py
 
-      - name: Package Windows zip
+      - name: Package (Windows)
         if: matrix.name == 'windows'
+        shell: pwsh
         run: |
-          Compress-Archive -Path dist\Astral\* -DestinationPath dist\Astral-windows-${{ github.ref_name }}.zip
+          $name = "Astral-windows-${{ github.ref_name }}"
+          Compress-Archive -Path dist\Astral\* -DestinationPath "dist\$name.zip"
+          echo "asset=dist/$name.zip" >> $env:GITHUB_ENV
+          echo "asset_name=$name.zip" >> $env:GITHUB_ENV
 
-      - name: Package macOS dmg
+      - name: Package (macOS)
         if: matrix.name == 'macos'
         run: |
-          hdiutil create -volname Astral -srcfolder dist/Astral -ov -format UDZO dist/Astral-macos-${{ github.ref_name }}.dmg
+          name="Astral-macos-${{ github.ref_name }}"
+          hdiutil create -volname Astral -srcfolder dist/Astral -ov -format UDZO "dist/${name}.dmg"
+          echo "asset=dist/${name}.dmg" >> $GITHUB_ENV
+          echo "asset_name=${name}.dmg" >> $GITHUB_ENV
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/Astral-windows-*.zip
-            dist/Astral-macos-*.dmg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: ${{ env.asset }}
+          name: ${{ github.ref_name }}
+          prerelease: true
+          generate_release_notes: true
