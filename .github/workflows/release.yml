@@ -55,7 +55,7 @@ jobs:
         if: matrix.name == 'macos'
         run: |
           mkdir -p cards
-          pyinstaller --onedir --name Astral --noconfirm \
+          pyinstaller --onedir --windowed --name Astral --noconfirm \
             --add-data "static:static" \
             --add-data "scenarios:scenarios" \
             --add-data "blueprints:blueprints" \
@@ -81,7 +81,7 @@ jobs:
         if: matrix.name == 'macos'
         run: |
           name="Astral-macos-${{ github.ref_name }}"
-          hdiutil create -volname Astral -srcfolder dist/Astral -ov -format UDZO "dist/${name}.dmg"
+          hdiutil create -volname Astral -srcfolder dist/Astral.app -ov -format UDZO "dist/${name}.dmg"
           echo "asset=dist/${name}.dmg" >> $GITHUB_ENV
           echo "asset_name=${name}.dmg" >> $GITHUB_ENV
 
