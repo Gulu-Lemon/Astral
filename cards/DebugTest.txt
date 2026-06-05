@@ -1,5 +1,0 @@
-name: DebugTest
-age: 12
-appearance: Red
-magic: Fire
-personality: Brave

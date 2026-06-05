@@ -3,3 +3,9 @@ __pycache__/
 logs/
 saves/
 config_profiles.json
+build/
+dist/
+*.spec
+*.exe
+*.rar
+cards/
