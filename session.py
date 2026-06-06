@@ -531,14 +531,36 @@ class GameSession:
 
         total = target_minutes - self.world.time_minutes
         for _ in range(max(1, total // 10)):
+            prev_events = len(self.world.public_events)
+
             self._tick(10)
             if self.world.time_minutes >= target_minutes:
                 self.world.time_minutes = target_minutes
                 self.world.current_time = _time_string(self.world.time_minutes)
                 break
+
+            # 广播中断
             if getattr(self, 'xbrdcst', None):
                 msg = self.xbrdcst; self.xbrdcst = None
                 return f"skip_interrupted: {msg}"
+
+            # NPC 主动走向玩家
+            player_loc = self.player_location
+            for aid, agent in self.agents.items():
+                st = self.agent_states.get(aid, DEAD_NPC)
+                if not st.alive: continue
+                plan = st.current_plan
+                if plan and not plan.is_completed and plan.current_step_idx < len(plan.steps):
+                    step = plan.steps[plan.current_step_idx]
+                    if step.action_type and step.action_type.upper() == "SOCIALIZE" \
+                       and step.target_id == "player" \
+                       and self.world.npc_locations.get(aid) == player_loc:
+                        return f"skip_interrupted: {agent.profile.name}走向你，想与你交谈。"
+
+            # 附近发生事件
+            for evt in self.world.public_events[prev_events:]:
+                if evt.location == player_loc or "player" in evt.witnesses:
+                    return f"skip_interrupted: {evt.public_description[:80]}"
 
         self.world.current_time = _time_string(self.world.time_minutes)
         return f"skipped_to: {_time_string(target_minutes)}"

@@ -1216,6 +1216,8 @@ function renderDebugRulings(d){if(!d||!d.rulings)return;el('#debug-rulings').inn
 
 // ====== SKIP / SLEEP ======
 function doSkipTime(){
+  if(S.dialogueWith){addLog('system','正在对话中，无法跳过时间。');return}
+  if(S.customAction){addLog('system','正在输入行动，无法跳过时间。');return}
   el('#skip-panel').style.display='inline-flex';
   el('#btn-skip').style.display='none';
   el('#btn-sleep').style.display='none';
@@ -1248,6 +1250,8 @@ function doSkipConfirm(){
     });
 }
 function doSleep(){
+  if(S.dialogueWith){addLog('system','正在对话中，无法睡觉。');return}
+  if(S.customAction){addLog('system','正在输入行动，无法睡觉。');return}
   showLoading(true,'睡眠中...');
   fetch('/api/sleep',{method:'POST'}).then(function(r){return r.json()})
     .then(function(d){
