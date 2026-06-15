@@ -27,6 +27,7 @@
       <button id="btn-skip-confirm" style="font-size:10px;padding:3px 6px;background:var(--accent);border:none;color:#fff;border-radius:3px;cursor:pointer;">确定</button>
       <button id="btn-skip-cancel" style="font-size:10px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:3px;cursor:pointer;">取消</button>
     </span>
+    <button id="btn-multiplayer" title="联机模式" style="background:none;border:1px solid var(--accent);color:var(--accent);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">&#127760; 联机</button>
     <button id="btn-newgame" title="开始新游戏" style="background:none;border:1px solid var(--accent);color:var(--accent);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">&#9654; 新游戏</button>
     <button id="btn-settings" title="API 设置">&#9881;</button>
     <button id="btn-save" title="存档管理">&#128190;</button>
@@ -266,6 +267,69 @@
   </div>
 </div>
 
+<!-- ====== 联机模式 UI ====== -->
+
+<!-- 联机大厅 -->
+<div id="mp-lobby" style="display:none;">
+  <div class="panel-overlay"></div>
+  <div class="panel-drawer" style="width:420px;max-width:95vw;">
+    <h3 id="mp-lobby-title">&#127760; 联机大厅</h3>
+    <div id="mp-lobby-join">
+      <div class="form-group"><label>你的名字</label><input type="text" id="mp-player-name" maxlength="16" placeholder="输入你的名字"></div>
+      <div style="display:flex;gap:8px;margin:12px 0;">
+        <button id="btn-mp-create" class="mini-btn primary" style="flex:1;">创建房间</button>
+        <div style="display:flex;align-items:center;gap:4px;flex:1;">
+          <input type="text" id="mp-room-code" maxlength="6" placeholder="房间码" style="width:70px;">
+          <button id="btn-mp-join" class="mini-btn">加入</button>
+        </div>
+      </div>
+    </div>
+    <div id="mp-lobby-room" style="display:none;">
+      <div style="margin-bottom:8px;">房间码：<strong id="mp-room-display"></strong> <span id="mp-room-scene"></span></div>
+      <div id="mp-slot-list" style="max-height:50vh;overflow-y:auto;"></div>
+      <div style="margin-top:8px;display:flex;gap:6px;"><span id="mp-player-count" style="font-size:11px;color:var(--text2);"></span></div>
+      <div style="margin-top:10px;display:flex;gap:6px;">
+        <button id="btn-mp-start" class="mini-btn primary" style="flex:1;">开始游戏</button>
+        <button id="btn-mp-leave" class="mini-btn" style="flex:1;">离开房间</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 联机游戏意图面板 -->
+<div id="mp-intent-panel" style="display:none;">
+  <div class="panel-overlay"></div>
+  <div class="panel-drawer" style="width:420px;max-width:95vw;max-height:85vh;overflow-y:auto;">
+    <h3 id="mp-intent-title">&#128172; 你的行动</h3>
+    <div id="mp-perception" style="font-size:11px;color:var(--text2);margin-bottom:10px;max-height:80px;overflow-y:auto;background:var(--bg3);padding:8px;border-radius:4px;line-height:1.5;"></div>
+    <div class="form-group"><label>行动类型</label>
+      <select id="mp-intent-type" style="width:100%;padding:4px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;">
+        <option value="rest">休息</option><option value="socialize">社交</option><option value="explore">探索/移动</option>
+        <option value="confront">对峙</option><option value="isolate">独处</option><option value="stalk">跟踪</option>
+        <option value="attack">攻击</option><option value="trap">陷阱</option><option value="defend">防御</option><option value="sabotage">破坏</option>
+      </select></div>
+    <div class="form-group"><label>目标 (agent_id)</label><input type="text" id="mp-intent-target" maxlength="30" placeholder="No.05 或留空"></div>
+    <div class="form-group"><label>目标位置 (explore时)</label><input type="text" id="mp-intent-loc" maxlength="60" placeholder="房间名 或留空"></div>
+    <div class="form-group"><label>对话 (dialogue)</label><textarea id="mp-intent-dialogue" rows="2" maxlength="500" placeholder="你说出的话..."></textarea></div>
+    <div class="form-group"><label>动作描写 (prose)</label><textarea id="mp-intent-prose" rows="2" maxlength="500" placeholder="第三人称的动作描写..."></textarea></div>
+    <div class="form-group"><label>内心独白 (仅自己可见)</label><textarea id="mp-intent-internal" rows="2" maxlength="300" placeholder="内心的真实想法..."></textarea></div>
+    <div class="form-group"><label>理由 (reasoning)</label><input type="text" id="mp-intent-reason" maxlength="200" placeholder="为什么这么做..."></div>
+    <div class="form-group"><label>预计耗时 (分钟)</label><input type="text" id="mp-intent-duration" value="10" maxlength="3" style="width:60px;"></div>
+    <div class="modal-actions">
+      <button id="btn-mp-submit-intent" class="primary" style="width:100%;">提交行动</button>
+    </div>
+  </div>
+</div>
+
+<!-- 联机等待/叙事区 -->
+<div id="mp-game-overlay" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:500;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 20px;max-width:500px;width:90%;">
+  <div id="mp-status-line" style="font-size:12px;color:var(--text2);text-align:center;">等待其他玩家提交...</div>
+  <div id="mp-ready-list" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:6px;"></div>
+  <div id="mp-narrative-stream" style="display:none;max-height:200px;overflow-y:auto;margin-top:8px;font-size:13px;line-height:1.7;background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--border);"></div>
+</div>
+
 <script src="/app.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="/multiplayer.js"></script>
 </body>
 </html>

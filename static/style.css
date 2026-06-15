@@ -437,3 +437,24 @@ body {
 .map-arrow:hover { color:var(--accent); background:var(--bg3); }
 .map-arrow.locked { opacity:.3; cursor:not-allowed; }
 .map-arrow.locked:hover { color:var(--text2); background:none; }
+
+/* ====== 联机模式 ====== */
+
+.mp-slot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 6px; margin-bottom: 4px;
+  background: var(--bg); cursor: default;
+}
+.mp-slot-me { border-color: var(--accent); background: var(--bg3); }
+.mp-slot-ai { cursor: pointer; }
+.mp-slot-ai:hover { border-color: var(--accent2); }
+.mp-slot-offline { opacity: 0.4; }
+.mp-slot-id { color: var(--text2); font-size: 12px; font-family: monospace; min-width: 50px; }
+.mp-slot-name { color: var(--text); font-size: 13px; flex: 1; }
+.mp-slot-badge {
+  font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  background: var(--bg3); color: var(--accent); border: 1px solid var(--accent);
+}
+.mp-slot-you { color: var(--accent2); border-color: var(--accent2); }
+

@@ -632,6 +632,8 @@ class AgentState:
     alive: bool = True
     investigation_result: list[str] = field(default_factory=list)  # 审判调查发现
     current_plan: Optional["ActionPlan"] = None                      # 当前行动计划
+    is_human: bool = False                                           # 联机：是否由真人控制
+    busy_until: int = 0                                              # 联机：忙碌到何时(time_minutes)
 
     def to_dict(self) -> dict:
         return {
@@ -649,6 +651,8 @@ class AgentState:
             "alive": self.alive,
             "investigation_result": list(self.investigation_result),
             "current_plan": self.current_plan.to_dict() if self.current_plan else None,
+            "is_human": self.is_human,
+            "busy_until": self.busy_until,
         }
 
     @classmethod
@@ -669,4 +673,91 @@ class AgentState:
             alive=d.get("alive", True),
             investigation_result=list(d.get("investigation_result", [])),
             current_plan=ActionPlan.from_dict(plan_data) if plan_data else None,
+            is_human=d.get("is_human", False),
+            busy_until=d.get("busy_until", 0),
+        )
+
+
+# ====== 联机系统数据结构 ======
+
+@dataclass
+class PlayerSlot:
+    """联机角色槽位 — 标记哪个 NPC 由真人/AI 控制"""
+    agent_id: str = ""
+    is_human: bool = False
+    player_sid: str = ""           # Socket.IO session id (真人时有效)
+    player_name: str = ""          # 真人显示名
+    connected: bool = False
+    ready: bool = False            # 当前时间窗口已提交意图
+
+    def to_dict(self) -> dict:
+        return {
+            "agent_id": self.agent_id, "is_human": self.is_human,
+            "player_sid": self.player_sid, "player_name": self.player_name,
+            "connected": self.connected, "ready": self.ready,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "PlayerSlot":
+        return cls(agent_id=d.get("agent_id", ""), is_human=d.get("is_human", False),
+                   player_sid=d.get("player_sid", ""), player_name=d.get("player_name", ""),
+                   connected=d.get("connected", False), ready=d.get("ready", False))
+
+
+@dataclass
+class MultiplayerRoom:
+    """联机房 — 一局联机游戏"""
+    room_id: str = ""              # 6位房间码
+    host_sid: str = ""             # 房主 socket id
+    host_agent_id: str = ""        # 房主扮演的角色
+    scene_id: str = "tianji_maze"
+    slots: dict[str, PlayerSlot] = field(default_factory=dict)
+    phase: str = "lobby"           # lobby | playing | ended
+    window_minutes: int = 10       # 时间窗口长度(分钟)
+    max_window_minutes: int = 30   # 最大窗口长度
+    intent_timeout: int = 120      # 意图提交超时(秒)
+    created_at: float = 0.0
+
+    def to_dict(self) -> dict:
+        return {
+            "room_id": self.room_id, "host_sid": self.host_sid,
+            "host_agent_id": self.host_agent_id, "scene_id": self.scene_id,
+            "slots": {k: v.to_dict() for k, v in self.slots.items()},
+            "phase": self.phase, "window_minutes": self.window_minutes,
+            "max_window_minutes": self.max_window_minutes,
+            "intent_timeout": self.intent_timeout, "created_at": self.created_at,
+        }
+
+
+@dataclass
+class PlayerAction:
+    """真人玩家提交的动作 (对应一个 Intent)"""
+    agent_id: str = ""
+    intent_type: str = ""          # IntentType 字符串值
+    target_id: Optional[str] = None
+    target_location: Optional[str] = None
+    reasoning: str = ""
+    dialogue: str = ""
+    prose: str = ""
+    internal: str = ""             # 内心独白(仅自己可见)
+    risk: str = ""
+    scene_hint: str = ""
+    estimated_duration: int = 10   # LLM 估算的耗时(分钟)
+
+    def to_intent(self) -> "Intent":
+        return Intent(
+            agent_id=self.agent_id,
+            intent_type=IntentType(self.intent_type) if self.intent_type in {
+                "socialize", "explore", "rest", "confront", "isolate",
+                "stalk", "sabotage", "attack", "trap", "defend",
+                "search", "interrogate", "guard", "watch"
+            } else IntentType.REST,
+            target_id=self.target_id,
+            target_location=self.target_location,
+            reasoning=self.reasoning,
+            risk=self.risk,
+            scene_hint=self.scene_hint,
+            dialogue=self.dialogue,
+            prose=self.prose,
+            internal=self.internal,
         )

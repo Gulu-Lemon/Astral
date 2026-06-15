@@ -525,6 +525,212 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
             return f"{cp.appearance}[{agent_id}]"
         return f"{cp.name}[{agent_id}]"
 
+    def _npc_label_for_agent(self, viewer_id: str, target_id: str, world):
+        """以 viewer_id 的视角标记 target_id"""
+        if target_id == viewer_id:
+            cp = self._characters.get(target_id)
+            return cp.name if cp else target_id
+        cp = self._characters.get(target_id)
+        if not cp:
+            return target_id
+        return f"{cp.name}[{target_id}]"
+
+    # ========== 多人模式方法 ==========
+
+    def stream_narrative_for_agent(self, agent_id: str, rulings: list, world,
+                                    agent_states: dict, location: str, materials: str = ""):
+        """为指定 agent 流式生成第三人称叙事（联机模式）"""
+        scenario = get(self._scene_id)
+        scene_name = scenario.get("name", "") if scenario else ""
+        scene_tone = self._scene_tone()
+
+        agent = self._characters.get(agent_id)
+        agent_name = agent.name if agent else agent_id
+
+        rulings_desc = []
+        for r in rulings[:12]:
+            actor = self._npc_label_for_agent(agent_id, r.intent.agent_id, world)
+            desc = r.description
+            if r.intent.reasoning:
+                desc += f"（动机：{r.intent.reasoning}）"
+            rulings_desc.append(f"{actor}: {desc}")
+
+        loc_npcs = [aid for aid, aloc in world.npc_locations.items()
+                    if aloc == location and aid != agent_id]
+
+        npc_sketches = []
+        for aid in loc_npcs:
+            st = agent_states.get(aid)
+            if not st or not st.alive:
+                continue
+            cp = self._characters.get(aid)
+            if cp:
+                aff = st.affection_map.get(agent_id, 50)
+                sketch_parts = [
+                    f"  {cp.name}[{aid}]: {getattr(cp, 'personality', '') or '未知'}",
+                    f"魔法: {getattr(cp, 'magic', '') or '未知'}",
+                    f"行为特征: {getattr(cp, 'play_core', '') or '未知'}",
+                    f"外貌: {getattr(cp, 'appearance', '') or ''}（对你{self._aff_hint(aff)}）",
+                ]
+                npc_sketches.append(" | ".join(sketch_parts))
+        npc_sketch_str = "\n".join(npc_sketches) if npc_sketches else "（此处无人）"
+
+        rel_lines = []
+        for i in range(len(loc_npcs)):
+            for j in range(i + 1, len(loc_npcs)):
+                a1, a2 = loc_npcs[i], loc_npcs[j]
+                st1, st2 = agent_states.get(a1), agent_states.get(a2)
+                if not st1 or not st2 or not st1.alive or not st2.alive:
+                    continue
+                aff12 = st1.affection_map.get(a2, 50)
+                aff21 = st2.affection_map.get(a1, 50)
+                if aff12 >= 65 or aff21 >= 65 or aff12 <= 25 or aff21 <= 25:
+                    cp1, cp2 = self._characters.get(a1), self._characters.get(a2)
+                    n1 = cp1.name if cp1 else a1
+                    n2 = cp2.name if cp2 else a2
+                    rel_lines.append(f"  {n1}[{a1}]↔{n2}[{a2}]：互信{max(aff12,aff21)}/警惕{min(aff12,aff21)}")
+        rel_str = "\n".join(rel_lines) if rel_lines else "（暂无特殊关系）"
+
+        room_features = scenario.get("room_features", {}).get(location, []) if scenario else []
+        feature_names = [f.get('name', '未知物品') for f in room_features] if room_features else [DEFAULT_ROOM_FEATURE]
+
+        event_details = ""
+        recent_events = world.public_events[-6:]
+        if recent_events:
+            lines = []
+            for evt in recent_events:
+                if agent_id in evt.witnesses or evt.location == location:
+                    desc = evt.full_description or evt.public_description
+                    if desc.strip():
+                        lines.append(desc)
+            event_details = "\n".join(lines) if lines else ""
+
+        social_desc = "、".join(self._social_facts) if self._social_facts else ""
+
+        prompt = f"""第{world.current_day}天 {world.current_time} · {location}
+视角角色：{agent_name}[{agent_id}]
+
+{scene_tone}
+
+【当前氛围】{social_desc if social_desc else '（暂无特别动态）'}
+{', '.join(rulings_desc) if rulings_desc else '（周围平静）'}
+
+{'【互动素材】\n' + materials + '\n' if materials else ''}
+{'【事件详情】\n' + event_details + '\n' if event_details else ''}
+
+【附近角色】
+{npc_sketch_str}
+
+【角色间关系】
+{rel_str}
+
+【可互动物品】{', '.join(feature_names)}
+
+【禁止】编造新角色/新名字。不在"附近角色"列表中的 NPC 不得出现在叙述中。
+
+=====
+
+以第三人称叙述，视角跟随 {agent_name}。叙述她/他此刻看到的、听到的、感受到的。
+- 仅描述视角角色能感知到的事物（同房间的事件、对话、氛围）
+- 感官细节自然融入
+- 决定互动的顺序和空间位置；突出2-3组关键互动，其余一笔带过
+- 角色对话尽量保持原文；可微调语气或添加衔接语
+- 【分段】每段5-6行。场景切换、换段。
+- 【叙事钩子】末尾自然埋入1-2个钩子
+
+只输出纯叙述文本。不要生成选项。不要输出 JSON。"""
+
+        gm_prompt = self._gm_prompt or "你是故事旁白和场景导演。"
+        gm_prompt += f"\n\n场景：{scene_name}。{scene_tone}。视角跟随：{agent_name}。"
+
+        try:
+            for chunk in self._llm.chat_stream(
+                messages=[{"role": "user", "content": prompt}],
+                system=gm_prompt,
+                temperature=0.8, max_tokens=3072,
+            ):
+                yield chunk
+        except Exception as e:
+            raise RuntimeError(f"联机叙事生成失败: {e}") from e
+
+    def generate_options_for_agent(self, agent_id: str, rulings: list, world,
+                                    agent_states: dict, location: str) -> list[dict]:
+        """为指定 agent 生成行动选项（联机模式）"""
+        scenario = get(self._scene_id)
+        scene_name = scenario.get("name", "") if scenario else ""
+        scene_tone = self._scene_tone()
+
+        agent = self._characters.get(agent_id)
+        agent_name = agent.name if agent else agent_id
+
+        loc_npcs = [aid for aid, aloc in world.npc_locations.items()
+                    if aloc == location and aid != agent_id]
+
+        npc_sketches = []
+        for aid in loc_npcs:
+            st = agent_states.get(aid)
+            if not st or not st.alive:
+                continue
+            cp = self._characters.get(aid)
+            if cp:
+                aff = st.affection_map.get(agent_id, 50)
+                sketch_parts = [
+                    f"  {cp.name}[{aid}]: {getattr(cp, 'personality', '') or ''}",
+                    f"外貌: {getattr(cp, 'appearance', '') or ''}（对你{self._aff_hint(aff)}）",
+                ]
+                npc_sketches.append(" | ".join(sketch_parts))
+        npc_sketch_str = "\n".join(npc_sketches) if npc_sketches else "（此处无人）"
+
+        room_features = scenario.get("room_features", {}).get(location, []) if scenario else []
+        feature_names = [f.get('name', '未知物品') for f in room_features] if room_features else [DEFAULT_ROOM_FEATURE]
+
+        prompt = f"""场景：{scene_name}。{scene_tone}
+视角角色：{agent_name}[{agent_id}]，位置：{location}
+
+【附近角色与可互动对象】
+{npc_sketch_str}
+
+【可互动物品】{', '.join(feature_names)}
+
+=====
+
+基于视角角色 {agent_name} 的处境，生成 4 个行动选项。要求：
+- target 必须从上述【附近角色】列表中选取，用 ID 格式（如 No.01）
+- 选项格式：完整的句子，描述角色接下来可以做什么
+- D（第4个）始终是"（自定义行动）"或开放选项
+- 考虑角色性格、好感度、当前处境
+
+输出 JSON：
+{{
+  "options": [
+    {{"label":"选项1","type":"dialogue|investigate|explore|custom","target":"No.01或null","room":"房间名或null"}},
+    {{"label":"选项2","type":"...","target":"...","room":"..."}},
+    {{"label":"选项3","type":"...","target":"...","room":"..."}},
+    {{"label":"选项4","type":"custom","target":null,"room":null}}
+  ]
+}}
+"""
+
+        gm_prompt = self._gm_prompt or "你是故事旁白。"
+        gm_prompt += f"\n\n场景：{scene_name}。视角角色：{agent_name}。"
+
+        try:
+            result = self._llm.chat_json(
+                messages=[{"role": "user", "content": prompt}],
+                system=gm_prompt,
+                temperature=0.7, max_tokens=4096,
+            )
+            raw_options = result.get("options", []) or []
+            return GMNarrator._parse_structured_options(raw_options)
+        except Exception as e:
+            logging.getLogger("astral.gm").error(f"联机选项生成失败 {agent_id}: {e}")
+            return [
+                {"label": "观察周围", "type": "investigate", "target": None, "room": None},
+                {"label": "与附近的人交谈", "type": "dialogue", "target": None, "room": None},
+                {"label": "移动到其他地方", "type": "explore", "target": None, "room": None},
+                {"label": "（自定义行动）", "type": "custom", "target": None, "room": None},
+            ]
+
 
 @dataclass
 class NarrativeOutput:
