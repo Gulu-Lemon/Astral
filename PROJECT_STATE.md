@@ -1,7 +1,10 @@
 # Astral — 项目状态摘要
 
 ## 版本
-v1.0.2-alpha（2026-06-05）
+v1.1.0-alpha（2026-06-15）
+
+## 最近更新
+- **联机多人模式 MVP**：Flask-SocketIO，房间系统（6位码），12 槽位（真人/AI），Model A 时间窗口，每玩家独立叙事
 
 ## 项目路径
 `E:\dd\文档们\AI互动小说计划\Astral\`
@@ -24,13 +27,15 @@ Astral/
 ├── config_profiles.py     # API 多配置管理（含思考模式）
 ├── save_manager.py        # 存档管理（自动 + 手动槽位）
 ├── debug.py               # 日志系统（4 个环形缓冲日志文件）
-├── blueprints/            # Flask Blueprint 路由模块（47 API）
+├── multiplayer_session.py  # 联机管理器（房间CRUD/时间窗口/意图收集/每玩家叙事）
+├── blueprints/            # Flask Blueprint 路由模块（47 API + Socket.IO）
 │   ├── prologue.py        # 序章 8 端点
 │   ├── game.py            # 游戏主循环 9 端点（含 SSE + skip/sleep/ending）
 │   ├── trial.py           # 审判 8 端点（含辩论 SSE + 证物 CRUD）
 │   ├── save.py            # 存档/Load/新游戏 5 端点
 │   ├── settings.py        # API 配置/连接测试/shutdown 6 端点
-│   └── meta.py            # 场景/角色卡/状态/元指令 8 端点
+│   ├── meta.py            # 场景/角色卡/状态/元指令 8 端点
+│   └── multiplayer.py     # Socket.IO 事件处理（13 事件）
 ├── scenarios/
 │   ├── __init__.py        # 场景注册/加载器
 │   ├── tianji_maze.py     # 天际迷宫（含 ENDING_CONFIG）

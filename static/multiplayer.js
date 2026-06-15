@@ -13,24 +13,24 @@ var M = {
     lastOptions: [],
 };
 
-function el(s) { return document.getElementById(s); }
+function gel(s) { return document.getElementById(s); }
 
 // ========== 入口 ==========
 
 function showMultiplayer() {
     if (!io) { alert('Socket.IO 未加载，请检查网络'); return; }
-    M.playerName = el('mp-player-name').value.trim() || ('玩家' + Math.floor(Math.random() * 9000 + 1000));
-    el('mp-player-name').value = M.playerName;
-    el('mp-lobby').style.display = 'flex';
-    el('mp-lobby-join').style.display = 'block';
-    el('mp-lobby-room').style.display = 'none';
-    el('mp-lobby-title').textContent = '\uD83C\uDF10 联机大厅';
+    M.playerName = gel('mp-player-name').value.trim() || ('玩家' + Math.floor(Math.random() * 9000 + 1000));
+    gel('mp-player-name').value = M.playerName;
+    gel('mp-lobby').style.display = 'flex';
+    gel('mp-lobby-join').style.display = 'block';
+    gel('mp-lobby-room').style.display = 'none';
+    gel('mp-lobby-title').textContent = '\uD83C\uDF10 联机大厅';
 }
 
 function hideMultiplayer() {
-    el('mp-lobby').style.display = 'none';
-    el('mp-intent-panel').style.display = 'none';
-    el('mp-game-overlay').style.display = 'none';
+    gel('mp-lobby').style.display = 'none';
+    gel('mp-intent-panel').style.display = 'none';
+    gel('mp-game-overlay').style.display = 'none';
     M.inLobby = false;
     if (M.socket) { M.socket.disconnect(); M.socket = null; }
     M.connected = false;
@@ -51,7 +51,7 @@ function mpConnect() {
         M.connected = false;
         console.log('[MP] 断开:', reason);
         if (M.inLobby) {
-            el('mp-status-line') && (el('mp-status-line').textContent = '连接断开...');
+            gel('mp-status-line') && (gel('mp-status-line').textContent = '连接断开...');
         }
     });
 
@@ -89,24 +89,24 @@ function mpConnect() {
 function onRoomCreated(d) {
     M.roomId = d.room_id;
     M.agentId = d.host_agent_id;
-    el('mp-lobby-join').style.display = 'none';
-    el('mp-lobby-room').style.display = 'block';
-    el('mp-room-display').textContent = d.room_id;
-    el('mp-room-scene').textContent = '场景: ' + (d.scene_id || 'tianji_maze');
+    gel('mp-lobby-join').style.display = 'none';
+    gel('mp-lobby-room').style.display = 'block';
+    gel('mp-room-display').textContent = d.room_id;
+    gel('mp-room-scene').textContent = '场景: ' + (d.scene_id || 'tianji_maze');
     M.inLobby = true;
     renderSlotList(d.slots);
-    el('mp-lobby-title').textContent = '\uD83C\uDFE0 房间 ' + d.room_id;
+    gel('mp-lobby-title').textContent = '\uD83C\uDFE0 房间 ' + d.room_id;
 }
 
 function onRoomJoined(d) {
     M.roomId = d.room_id;
     M.agentId = d.agent_id;
-    el('mp-lobby-join').style.display = 'none';
-    el('mp-lobby-room').style.display = 'block';
-    el('mp-room-display').textContent = d.room_id;
+    gel('mp-lobby-join').style.display = 'none';
+    gel('mp-lobby-room').style.display = 'block';
+    gel('mp-room-display').textContent = d.room_id;
     M.inLobby = true;
     renderSlotList(d.slots);
-    el('mp-lobby-title').textContent = '\uD83C\uDFE0 房间 ' + d.room_id;
+    gel('mp-lobby-title').textContent = '\uD83C\uDFE0 房间 ' + d.room_id;
 }
 
 function onPlayerJoined(d) {
@@ -122,7 +122,7 @@ function onSlotUpdated(d) {
 }
 
 function renderSlotList(slots) {
-    var container = el('mp-slot-list');
+    var container = gel('mp-slot-list');
     if (!container) return;
     var html = '';
     var humanCount = 0;
@@ -155,7 +155,7 @@ function renderSlotList(slots) {
         }
     }
     container.innerHTML = html;
-    if (el('mp-player-count')) el('mp-player-count').textContent = humanCount + '/12 人';
+    if (gel('mp-player-count')) gel('mp-player-count').textContent = humanCount + '/12 人';
 }
 
 function mpSelectSlot(agentId) {
@@ -166,24 +166,24 @@ function mpSelectSlot(agentId) {
 // ========== 游戏流程回调 ==========
 
 function onGameStarting(d) {
-    el('mp-lobby').style.display = 'none';
-    el('mp-game-overlay').style.display = 'block';
-    el('mp-status-line').textContent = '游戏开始！';
-    el('mp-narrative-stream').style.display = 'none';
+    gel('mp-lobby').style.display = 'none';
+    gel('mp-game-overlay').style.display = 'block';
+    gel('mp-status-line').textContent = '游戏开始！';
+    gel('mp-narrative-stream').style.display = 'none';
     M.inLobby = false;
 }
 
 function onWindowStart(d) {
-    el('mp-game-overlay').style.display = 'block';
-    el('mp-status-line').textContent = '时间窗口 (' + d.window_minutes + '分钟) — 准备你的行动';
-    el('mp-narrative-stream').style.display = 'none';
-    el('mp-narrative-stream').textContent = '';
+    gel('mp-game-overlay').style.display = 'block';
+    gel('mp-status-line').textContent = '时间窗口 (' + d.window_minutes + '分钟) — 准备你的行动';
+    gel('mp-narrative-stream').style.display = 'none';
+    gel('mp-narrative-stream').textContent = '';
     M.narrativeText = '';
 }
 
 function onIntentRequest(d) {
     M.waitingForIntent = true;
-    el('mp-game-overlay').style.display = 'block';
+    gel('mp-game-overlay').style.display = 'block';
 
     var perc = '';
     perc += '位置: ' + (d.location || '未知') + ' | ';
@@ -197,28 +197,28 @@ function onIntentRequest(d) {
     } else {
         perc += '附近: 无人';
     }
-    el('mp-perception').textContent = perc;
+    gel('mp-perception').textContent = perc;
 
-    el('mp-intent-panel').style.display = 'flex';
-    el('mp-intent-title').textContent = '\uD83C\uDFAD ' + (d.agent_name || d.agent_id) + ' 的行动';
-    el('mp-intent-type').value = 'rest';
-    el('mp-intent-target').value = '';
-    el('mp-intent-loc').value = '';
-    el('mp-intent-dialogue').value = '';
-    el('mp-intent-prose').value = '';
-    el('mp-intent-internal').value = '';
-    el('mp-intent-reason').value = '';
-    el('mp-intent-duration').value = '10';
+    gel('mp-intent-panel').style.display = 'flex';
+    gel('mp-intent-title').textContent = '\uD83C\uDFAD ' + (d.agent_name || d.agent_id) + ' 的行动';
+    gel('mp-intent-type').value = 'rest';
+    gel('mp-intent-target').value = '';
+    gel('mp-intent-loc').value = '';
+    gel('mp-intent-dialogue').value = '';
+    gel('mp-intent-prose').value = '';
+    gel('mp-intent-internal').value = '';
+    gel('mp-intent-reason').value = '';
+    gel('mp-intent-duration').value = '10';
 }
 
 function onIntentConfirmed(d) {
-    el('mp-intent-panel').style.display = 'none';
+    gel('mp-intent-panel').style.display = 'none';
     M.waitingForIntent = false;
-    el('mp-status-line').textContent = '已提交，等待其他玩家...';
+    gel('mp-status-line').textContent = '已提交，等待其他玩家...';
 }
 
 function onReadyStatus(d) {
-    if (!el('mp-ready-list')) return;
+    if (!gel('mp-ready-list')) return;
     var html = '';
     var total = 0, ready = 0;
     for (var i = 0; i < d.players.length; i++) {
@@ -229,15 +229,15 @@ function onReadyStatus(d) {
         var icon = p.ready ? '\u2714' : p.connected ? '\u23F3' : '\u2716';
         html += '<span style="color:' + color + ';font-size:10px;padding:2px 4px;">' + icon + ' ' + escHtml(p.player_name || p.agent_id) + '</span>';
     }
-    el('mp-ready-list').innerHTML = html;
+    gel('mp-ready-list').innerHTML = html;
     if (total > 0) {
-        el('mp-status-line').textContent = '已提交: ' + ready + '/' + total;
+        gel('mp-status-line').textContent = '已提交: ' + ready + '/' + total;
     }
 }
 
 function onNarrativeChunk(d) {
     M.narrativeText += d.text;
-    var stream = el('mp-narrative-stream');
+    var stream = gel('mp-narrative-stream');
     if (stream) {
         stream.style.display = 'block';
         stream.textContent += d.text;
@@ -255,7 +255,7 @@ function onPlayerOptions(d) {
 }
 
 function renderMpOptions(options) {
-    var bar = el('action-bar');
+    var bar = gel('action-bar');
     if (!bar) return;
     bar.innerHTML = '';
     if (!options || options.length === 0) {
@@ -301,7 +301,7 @@ function mpQuickAction(type) {
 }
 
 function onRoundEnd(d) {
-    el('mp-status-line').textContent = '第' + d.day + '天 ' + d.time + ' | ' + d.location;
+    gel('mp-status-line').textContent = '第' + d.day + '天 ' + d.time + ' | ' + d.location;
     // Update NPC panel if it exists
     if (typeof renderNPCs === 'function' && d.npcs) {
         var npcData = [];
@@ -352,16 +352,16 @@ function mpSubmitIntent() {
 
     var data = {
         room_id: M.roomId,
-        intent_type: el('mp-intent-type').value,
-        target_id: el('mp-intent-target').value.trim() || null,
-        target_location: el('mp-intent-loc').value.trim() || null,
-        dialogue: el('mp-intent-dialogue').value.trim(),
-        prose: el('mp-intent-prose').value.trim(),
-        internal: el('mp-intent-internal').value.trim(),
-        reasoning: el('mp-intent-reason').value.trim(),
+        intent_type: gel('mp-intent-type').value,
+        target_id: gel('mp-intent-target').value.trim() || null,
+        target_location: gel('mp-intent-loc').value.trim() || null,
+        dialogue: gel('mp-intent-dialogue').value.trim(),
+        prose: gel('mp-intent-prose').value.trim(),
+        internal: gel('mp-intent-internal').value.trim(),
+        reasoning: gel('mp-intent-reason').value.trim(),
         risk: '',
         scene_hint: '',
-        duration: parseInt(el('mp-intent-duration').value) || 10,
+        duration: parseInt(gel('mp-intent-duration').value) || 10,
     };
 
     M.socket.emit('submit_intent', data);
@@ -371,8 +371,8 @@ function mpSubmitIntent() {
 
 function mpCreateRoom() {
     mpConnect();
-    M.playerName = el('mp-player-name').value.trim() || ('玩家' + Math.floor(Math.random() * 9000 + 1000));
-    el('mp-player-name').value = M.playerName;
+    M.playerName = gel('mp-player-name').value.trim() || ('玩家' + Math.floor(Math.random() * 9000 + 1000));
+    gel('mp-player-name').value = M.playerName;
 
     if (!M.socket.connected) {
         M.socket.on('connect', function () {
@@ -384,10 +384,10 @@ function mpCreateRoom() {
 }
 
 function mpJoinRoom() {
-    var code = el('mp-room-code').value.trim().toUpperCase();
+    var code = gel('mp-room-code').value.trim().toUpperCase();
     if (!code) { alert('请输入房间码'); return; }
     mpConnect();
-    M.playerName = el('mp-player-name').value.trim() || ('玩家' + Math.floor(Math.random() * 9000 + 1000));
+    M.playerName = gel('mp-player-name').value.trim() || ('玩家' + Math.floor(Math.random() * 9000 + 1000));
 
     if (!M.socket.connected) {
         M.socket.on('connect', function () {
@@ -419,22 +419,22 @@ function escHtml(s) {
 // ========== 绑定 DOM 事件 ==========
 
 document.addEventListener('DOMContentLoaded', function () {
-    var btnMp = el('btn-multiplayer');
+    var btnMp = gel('btn-multiplayer');
     if (btnMp) btnMp.onclick = showMultiplayer;
 
-    var btnMpCreate = el('btn-mp-create');
+    var btnMpCreate = gel('btn-mp-create');
     if (btnMpCreate) btnMpCreate.onclick = mpCreateRoom;
 
-    var btnMpJoin = el('btn-mp-join');
+    var btnMpJoin = gel('btn-mp-join');
     if (btnMpJoin) btnMpJoin.onclick = mpJoinRoom;
 
-    var btnMpStart = el('btn-mp-start');
+    var btnMpStart = gel('btn-mp-start');
     if (btnMpStart) btnMpStart.onclick = mpStartGame;
 
-    var btnMpLeave = el('btn-mp-leave');
+    var btnMpLeave = gel('btn-mp-leave');
     if (btnMpLeave) btnMpLeave.onclick = mpLeaveRoom;
 
-    var btnMpSubmit = el('btn-mp-submit-intent');
+    var btnMpSubmit = gel('btn-mp-submit-intent');
     if (btnMpSubmit) btnMpSubmit.onclick = mpSubmitIntent;
 
     // Close lobby on overlay click
@@ -444,6 +444,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Close intent panel on overlay click
     var intentOverlay = document.querySelector('#mp-intent-panel .panel-overlay');
     if (intentOverlay) intentOverlay.onclick = function () {
-        el('mp-intent-panel').style.display = 'none';
+        gel('mp-intent-panel').style.display = 'none';
     };
 });

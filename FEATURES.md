@@ -82,3 +82,17 @@
 - 全局开关 + 分组件控制（Agent/Arbiter/GM）
 - 支持思考 token 预算（`thinking_budget`）
 - LLMClient chat()/chat_stream() 自动注入 payload
+
+## 联机多人模式（v1.1.0-alpha）
+
+- **Flask-SocketIO 集成**：基于 WebSocket 的房间通信，`async_mode="threading"`
+- **房间系统**：创建房间（6 位码）/ 加入 / 离开，12 槽位（真人/AI 可切换），房主控制
+- **Model A 时间窗口**：可配置窗口时长（5-30 分钟），窗口内玩家异步提交意图，窗口关闭时统一解析
+- **意图提交**：真人玩家通过结构化表单提交 Intent（类型/目标/对话/内心独白），自动转为 Intent 并入仲裁管线
+- **AI 自动填充**：真人槽位在线时跳过 LLM 决策；AI 槽位并发调用 `agent.decide()` 补充
+- **每玩家独立叙事**：`stream_narrative_for_agent()` 基于视角过滤可见 rulings，GM 以第三人称生成角色专属叙述
+- **每玩家独立选项**：`generate_options_for_agent()` 基于角色位置/附近NPC生成行动选项
+- **真人↔真人/真人↔NPC 对话**：socket 事件 `send_dialogue` → 目标在线则直发，目标为 NPC 则走 AGENT.dialogue()
+- **前端大厅**：创建/加入房间、槽位选择、玩家就绪状态实时显示
+- **前端游戏面板**：感知快照、意图提交表单、叙事流接收、选项渲染
+- **超时保护**：窗口超时 120s 强制推进，断线槽位标记离线
