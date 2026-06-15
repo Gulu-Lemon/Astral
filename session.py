@@ -127,7 +127,7 @@ class GameSession:
             _scp(name, c.get("api_base_url",""), c.get("api_key",""), c.get("model_name",""))
             _acp(name)
             os.remove(old)
-        except: pass
+        except Exception: pass
 
     def _resolve_characters(self) -> dict:
         """加载场景角色 → NPC_cards 富角色卡覆盖 → 返回最终角色字典"""
@@ -182,7 +182,7 @@ class GameSession:
         except Exception as e1:
             if len(sys) > 500:
                 try: return self.llm.chat(messages=msgs, system="你是旁白。第三人称。", temperature=temp, max_tokens=mt)
-                except: pass
+                except Exception: pass
             try: return self.llm.chat(messages=msgs, system=None, temperature=temp, max_tokens=mt)
             except Exception as e3:
                 emsg = str(e3)[:200]
@@ -285,7 +285,7 @@ class GameSession:
             result = self.llm.chat_json(messages=[{"role":"user","content":prompt}], temperature=0.8, max_tokens=512)
             suggestions = result.get("suggestions",[])
             return suggestions[:3] if len(suggestions) >= 3 else suggestions + ["你还好吗？","能聊聊吗？"][:3-len(suggestions)]
-        except: return ["你好。","你还好吗？","能聊聊吗？"]
+        except Exception: return ["你好。","你还好吗？","能聊聊吗？"]
 
     # === Game Loop ===
 
@@ -776,7 +776,7 @@ class GameSession:
         if not trial or trial.phase != "investigation": return "没有进行中的调查阶段。"
         try:
             return self.llm.chat(messages=[{"role":"user","content":f"玩家调查：{action}。受害者：{trial.victim_id}。描述发现的线索，80-120字。"}], system="你是故事旁白。冷静、精确。", temperature=0.9, max_tokens=512)
-        except: return "调查未发现特别的线索。"
+        except Exception: return "调查未发现特别的线索。"
 
     def add_evidence(self, item_desc: str) -> dict:
         """添加证物到当前审判中，含 LLM 模型校验。"""
@@ -1152,7 +1152,7 @@ class GameSession:
         if tt == "survivor_count":
             try:
                 if len(self.world.alive_npcs) <= int(tv): trig = True
-            except: pass
+            except Exception: pass
         elif tt == "location_reached":
             if self.player_location == str(tv): trig = True
         if not trig: return None
@@ -1199,7 +1199,7 @@ class GameSession:
 玩家：{self.player_name} | 幸存者：{'、'.join(surv) or '无'} | 逝者：{'、'.join(dead) or '无'}
 场景：{self.scenario.get('name','') if self.scenario else ''}
 用第二人称叙述，情感饱满。结局。"""}], system="你是故事旁白。结局叙事，文笔精美、情感深沉。", temperature=1.0, max_tokens=1024)
-        except: return f"故事结束。{self.player_name}做出了选择。——{branch.get('label','')}"
+        except Exception: return f"故事结束。{self.player_name}做出了选择。——{branch.get('label','')}"
 
     def _death_ending_text(self) -> str:
         """生成玩家死亡结局的叙事文本。不写外界现实。"""
@@ -1210,7 +1210,7 @@ class GameSession:
 意识的消散、最后的感知、或宁静的虚无。不要写天堂、地狱、轮回。
 不要写外界现实（如废土、苏醒舱等）。150-200字。
 场景：{scene_name}。"""}], system="你是故事旁白。死亡结局，静谧、诚实、不粉饰。", temperature=0.9, max_tokens=512)
-        except:
+        except Exception:
             return f"{self.player_name}的旅程结束了。在{scene_name}的某个角落，一切归于平静。"
 
 _session_lock = threading.Lock()

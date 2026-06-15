@@ -11,7 +11,8 @@ t.start()
 time.sleep(2)
 base = "http://127.0.0.1:18002"
 
-def post(path, data={}):
+def post(path, data=None):
+    if data is None: data = {}
     req = urllib.request.Request(
         base + path,
         data=json.dumps(data).encode(),

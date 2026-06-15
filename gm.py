@@ -4,6 +4,8 @@ GM 叙述层 — 直接第三人称叙述 + 语境化选项
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
+import logging
+import traceback
 from state import WorldState, AgentState, Event, Ruling, GamePhase
 from scenarios import get
 
@@ -470,11 +472,10 @@ type: dialogue(talk to NPC, target=ID), investigate(survey items), explore(move 
             )
             raw_options = result.get("options", []) or []
             if not raw_options:
-                print(f"[generate_options] empty options from LLM, result keys: {list(result.keys())[:5]}")
+                logging.getLogger("astral.gm").warning(f"empty options from LLM, result keys: {list(result.keys())[:5]}")
             options = GMNarrator._parse_structured_options(raw_options)
         except Exception as e:
-            import traceback
-            print(f"[generate_options] FAILED: {e}\n{traceback.format_exc()}")
+            logging.getLogger("astral.gm").error(f"generate_options FAILED: {e}\n{traceback.format_exc()}")
             options = [{"label": "继续观察周围", "type": "investigate", "target": None, "room": None},
                        {"label": "与附近的人交谈", "type": "custom", "target": None, "room": None},
                        {"label": "探索这个区域", "type": "custom", "target": None, "room": None},

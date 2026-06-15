@@ -182,7 +182,7 @@ class PrologueEngine:
         except Exception as e1:
             if len(sys) > 500:
                 try: return llm.chat(messages=msgs, system="你是旁白。第三人称。", temperature=temp, max_tokens=mt)
-                except: pass
+                except Exception: pass
             try: return llm.chat(messages=msgs, system=None, temperature=temp, max_tokens=mt)
             except Exception as e3:
                 emsg = str(e3)[:200]

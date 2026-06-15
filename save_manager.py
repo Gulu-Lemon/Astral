@@ -159,11 +159,11 @@ class SaveManager:
         world.knowledge_flags = set(wd.get("knowledge_flags", []))
         world.rounds_since_last_murder = wd.get("rounds_since_last_murder", 99)
         world.first_murder_delayed = wd.get("first_murder_delayed", True)
-        world.prologue_step = wd.get("prologue_step", 7)
+        world.prologue_step = wd.get("prologue_step", 0)
         world.floor_2_unlocked = wd.get("floor_2_unlocked", False)
         world.floor_3_unlocked = wd.get("floor_3_unlocked", False)
         world.world_revelation_phase = wd.get("world_revelation_phase", 1)
-        world.player_magic = wd.get("player_magic", "")
+        world.player_magic = wd.get("player_magic", "尚未觉醒")
         world.alive_npcs = set(wd.get("alive_npcs", []))
         world.undiscovered_bodies = [BodyRecord.from_dict(b) if isinstance(b, dict) else b for b in wd.get("undiscovered_bodies", [])]
         world.cursed_npc = wd.get("cursed_npc", "")
