@@ -157,6 +157,7 @@ function switchTab(tab){
   }
   if(tab==='settings'){
     loadProfiles();
+    initThemeSwitcher();
   }
 }
 
