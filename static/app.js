@@ -464,6 +464,13 @@ function restorePrologueUI(step, phase, options){
 function addPrologueText(t){if(!t)return;var b=el('#prologue-text');b.innerHTML+=t+'<br>';b.scrollTop=b.scrollHeight}
 function clearPrologueText(){el('#prologue-text').innerHTML=''}
 
+function addPrologueSep(label){
+  var sep=document.createElement('div');
+  sep.className='prologue-sep';
+  sep.textContent='\u2014\u2014 '+label+' \u2014\u2014';
+  el('#prologue-text').appendChild(sep);
+}
+
 function addRuleText(t){
   if(!t)return;
   var b=el('#prologue-text');
@@ -485,21 +492,23 @@ function prologueStep1b(){
 function prologueStep2(magic){
   hidePrologueInput();showLoading(true,'确认魔法中...');
   fetch('/api/prologue/magic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({magic})})
-    .then(function(r){return r.json()}).then(function(d){showLoading(false);addPrologueText(d.text);el('#prologue-field').dataset.step='3';el('#prologue-input').style.display='none';el('#prologue-choices').style.display='flex'});
+    .then(function(r){return r.json()}).then(function(d){showLoading(false);addPrologueSep('\u9B54\u6CD5\uFF1A'+magic);addPrologueText(d.text);el('#prologue-field').dataset.step='3';el('#prologue-input').style.display='none';el('#prologue-choices').style.display='flex'});
 }
 
 function prologueChoose(mode){
   document.querySelectorAll('.choice-btn').forEach(function(b){b.classList.remove('selected')});
   document.querySelector('.choice-btn[data-mode="'+mode+'"]').classList.add('selected');
+  var modeLabel={A:'\u5267\u60C5\u6A21\u5F0F',B:'\u6B63\u5E38\u6A21\u5F0F',C:'\u9B54\u5973\u6A21\u5F0F'}[mode]||mode;
   hidePrologueInput();showLoading(true,'确认难度...');
   fetch('/api/prologue/difficulty',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode})})
-    .then(function(r){return r.json()}).then(function(d){showLoading(false);addPrologueText(d.text);setTimeout(function(){prologueStep4()},800)});
+    .then(function(r){return r.json()}).then(function(d){showLoading(false);addPrologueSep(modeLabel);addPrologueText(d.text);setTimeout(function(){prologueStep4()},800)});
 }
 
 function prologueStep4(){
   showLoading(true,'生成场景...');
   fetch('/api/prologue/camp').then(function(r){return r.json()}).then(function(d){
     showLoading(false);
+    addPrologueSep('\u5E8F\u7AE0');
     addPrologueText(d.text);
     if(d.options&&d.options.length>0){
       showPrologueOptions(d.options);
@@ -542,6 +551,7 @@ function prologueFromOption(choice,label){
       showLoading(false);
       if(d.error){addPrologueText('[错误] '+d.error);return}
       if(d.finished){prologueFinish()}else{
+        addPrologueSep(label+'. '+choice);
         addPrologueText(d.text);
         if(d.rule){addRuleText(d.rule)}
         if(d.options&&d.options.length>0){showPrologueOptions(d.options)}
@@ -554,6 +564,7 @@ function prologueContinue(text){
     .then(function(r){return r.json()}).then(function(d){
       if(d.error){addPrologueText('[错误] '+d.error);return}
       if(d.finished){prologueFinish()}else{
+        addPrologueSep('\u7EE7\u7EED\u63A2\u7D22');
         addPrologueText(d.text);
         if(d.rule){addRuleText(d.rule)}
         if(d.options&&d.options.length>0){showPrologueOptions(d.options)}
@@ -616,9 +627,9 @@ function nextRound(keepLog, elapsed){
   S._actionElapsed=(elapsed===undefined)?0:elapsed;
   showLoading(true,'推演中...');
   var es=new EventSource('/api/round?elapsed='+S._actionElapsed);
-  var _timeLabel='';
+  var _timeLabel='',_roundDay='',_roundTime='';
   es.addEventListener('round_start',function(e){
-    try{var d=JSON.parse(e.data);_timeLabel='第'+d.day+'天 '+d.time;el('#loading-time').textContent=_timeLabel}catch(ex){}
+    try{var d=JSON.parse(e.data);_timeLabel='第'+d.day+'天 '+d.time;_roundDay=d.day;_roundTime=d.time;el('#loading-time').textContent=_timeLabel}catch(ex){}
   });
   es.addEventListener('agent_done',function(e){
     try{var d=JSON.parse(e.data);el('#loading-progress').textContent='Agent '+d.completed+'/'+d.total;}catch(ex){}
@@ -629,7 +640,9 @@ function nextRound(keepLog, elapsed){
   es.addEventListener('narrative_start',function(e){
     showLoading(false);
     var sep=document.createElement('div');
-    sep.className='round-sep';sep.style.cssText='border-top:1px solid var(--border);margin:12px 0;opacity:.5';
+    sep.className='round-sep';
+    sep.textContent='\u2014\u2014 \u7B2C'+_roundDay+'\u5929 '+_roundTime+' \u2014\u2014';
+    sep.style.cssText='text-align:center;color:var(--accent);font-size:13px;margin:18px 0 10px 0;opacity:.6;letter-spacing:2px';
     el('#story-log').appendChild(sep);
     _streamDiv=document.createElement('div');
     _streamDiv.className='log-block log-narrative';

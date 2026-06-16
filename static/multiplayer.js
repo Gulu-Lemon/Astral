@@ -176,6 +176,13 @@ function onGameStarting(d) {
 function onWindowStart(d) {
     gel('mp-game-overlay').style.display = 'block';
     gel('mp-status-line').textContent = '时间窗口 (' + d.window_minutes + '分钟) — 准备你的行动';
+    var stream = gel('mp-narrative-stream');
+    if (stream && stream.textContent) {
+        var sep = document.createElement('div');
+        sep.style.cssText = 'text-align:center;color:var(--accent);font-size:12px;margin:12px 0 8px 0;opacity:.6;';
+        sep.textContent = '—— 时间推进 ' + d.window_minutes + '分钟 ——';
+        stream.appendChild(sep);
+    }
     gel('mp-narrative-stream').style.display = 'none';
     gel('mp-narrative-stream').textContent = '';
     M.narrativeText = '';
