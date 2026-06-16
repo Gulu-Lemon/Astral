@@ -1,36 +1,33 @@
 @echo off
-setlocal enabledelayedexpansion
+chcp 65001 >nul
 cd /d "%~dp0"
-title Astral v1.1.0-alpha
+title Astral
 
 echo.
 echo   Astral v1.1.0-alpha
+echo.
 
-REM === 检查 Python ===
 echo   检查 Python...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo   [错误] 未检测到 Python，请安装 Python 3.10+
-    echo   https://www.python.org/downloads/
+    echo   [错误] 未检测到 Python
+    echo   请安装 Python 3.10+: https://www.python.org/downloads/
     pause
     exit
 )
 
-REM === 检查依赖 ===
-echo   检查依赖包...
-set NEED=0
-
+echo   检查依赖...
 pip show flask >nul 2>&1 || set NEED=1
 pip show httpx >nul 2>&1 || set NEED=1
 pip show flask-socketio >nul 2>&1 || set NEED=1
 pip show simple-websocket >nul 2>&1 || set NEED=1
 
-if %NEED%==1 (
-    echo   正在安装...
+if defined NEED (
+    echo   正在安装依赖...
     pip install -r requirements.txt
     if %errorlevel% neq 0 (
-        echo   [错误] 安装失败
-        echo   请检查网络后手动执行: pip install -r requirements.txt
+        echo   [错误] 安装失败，请检查网络
+        echo   手动执行: pip install -r requirements.txt
         pause
         exit
     )
