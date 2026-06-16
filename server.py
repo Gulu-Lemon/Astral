@@ -7,7 +7,7 @@ from flask_socketio import SocketIO
 from debug import install_all
 
 app = Flask(__name__, static_folder="static", static_url_path="")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading",
+socketio = SocketIO(app, cors_allowed_origins="*",
                     ping_timeout=30, ping_interval=10, max_http_buffer_size=5_000_000)
 
 from blueprints.prologue import prologue_bp
@@ -37,7 +37,7 @@ def main():
     print("=" * 50)
     install_all(app)
     _register_multiplayer()
-    socketio.run(app, host="0.0.0.0", port=8640, debug=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=8640, debug=False)
 
 if __name__ == "__main__":
     main()
