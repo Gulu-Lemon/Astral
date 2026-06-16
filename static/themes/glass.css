@@ -1,0 +1,19 @@
+/* Astral — 液态玻璃主题 */
+:root {
+  --bg: #0d1117; --bg2: rgba(22,27,34,0.45); --bg3: rgba(56,139,253,0.18); --border: rgba(255,255,255,0.06);
+  --text: #e6edf3; --text2: rgba(230,237,243,0.55); --accent: #58a6ff; --accent2: rgba(88,166,255,0.3);
+  --danger: #f85149; --warn: #d2991d;
+}
+
+body {
+  background: radial-gradient(ellipse 80% 60% at 20% 20%, rgba(88,166,255,0.12), transparent),
+              radial-gradient(ellipse 60% 80% at 80% 70%, rgba(139,92,246,0.08), transparent),
+              #0d1117;
+  background-attachment: fixed;
+}
+#topbar { backdrop-filter: blur(20px); background: rgba(13,17,23,0.7); }
+#npc-panel { backdrop-filter: blur(12px); background: rgba(13,17,23,0.5); }
+#story-log .log-block { backdrop-filter: blur(8px); background: rgba(22,27,34,0.3); border-radius: 8px; padding: 12px; margin: 8px 0; }
+input, textarea, select { background: rgba(22,27,34,0.4); border-radius: 8px; }
+button, .action-btn { border-radius: 8px; backdrop-filter: blur(6px); }
+.panel-drawer { backdrop-filter: blur(24px); background: rgba(13,17,23,0.85); }

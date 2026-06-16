@@ -1,0 +1,12 @@
+/* Astral — OLED 纯黑主题 */
+:root {
+  --bg: #000000; --bg2: #0a0a0a; --bg3: #1a1a1a; --border: #222222;
+  --text: #ffffff; --text2: #888888; --accent: #ff6b6b; --accent2: #4caf50;
+  --danger: #f44336; --warn: #ff9800;
+}
+
+#topbar { border-bottom-color: #1a1a1a; box-shadow: 0 1px 4px rgba(255,255,255,0.02); }
+input, textarea, select { background: #0a0a0a; border-color: #1a1a1a; }
+#story-log .log-block { border-bottom-color: #111; }
+button, .mini-btn.primary { transition: opacity 0.15s; }
+button:hover { opacity: 0.85; }

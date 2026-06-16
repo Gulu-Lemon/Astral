@@ -1,0 +1,15 @@
+/* Astral — 纸质阅读主题 */
+:root {
+  --bg: #fdfbf7; --bg2: #f5f0e8; --bg3: #e8dcc8; --border: #d5cdc0;
+  --text: #1a1a1a; --text2: #5c534a; --accent: #8b4513; --accent2: #2e7d32;
+  --danger: #c62828; --warn: #e65100;
+}
+
+body {
+  background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(139,69,19,0.015) 2px, rgba(139,69,19,0.015) 4px);
+}
+#narrative-area { font-family: Georgia, 'Noto Serif SC', SimSun, serif; font-size: 16px; line-height: 2; color: #2a2a2a; }
+#story-log .log-block { line-height: 2; margin-bottom: 16px; }
+input, textarea, select { border-radius: 3px; }
+button { border-radius: 3px; }
+#topbar { background: #f5f0e8; border-bottom: 2px solid #d5cdc0; }

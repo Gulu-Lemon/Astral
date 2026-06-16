@@ -8,6 +8,7 @@ var S={inPrologue:false,prologueStep:0,playersTurn:true,dialogueWith:null,_scene
 // ====== INIT ======
 document.addEventListener('DOMContentLoaded',function(){
   if(window.location.search.includes('debug=1')) S.debug = true;
+  applyTheme(localStorage.getItem('astral-theme')||'dark');
 
   // Tab switching
   document.querySelectorAll('.tab-btn').forEach(function(b){
@@ -1112,7 +1113,40 @@ function doDeleteSave(filename){
 }
 
 // ====== SETTINGS ======
-function showSettings(){switchTab('settings')}
+
+var THEMES=[
+  {id:'dark',name:'暗色',css:'/themes/dark.css'},
+  {id:'oled',name:'OLED',css:'/themes/oled.css'},
+  {id:'paper',name:'纸质',css:'/themes/paper.css'},
+  {id:'glass',name:'玻璃',css:'/themes/glass.css'},
+  {id:'cyberpunk',name:'赛博',css:'/themes/cyberpunk.css'},
+];
+
+function initThemeSwitcher(){
+  var saved=localStorage.getItem('astral-theme')||'dark';
+  var sel=el('#theme-selector');if(!sel)return;
+  var html='';
+  THEMES.forEach(function(t){
+    html+='<label class="theme-option'+(t.id===saved?' active':'')+'" data-theme="'+t.id+'">'
+      +'<input type="radio" name="theme" value="'+t.id+'" '+(t.id===saved?'checked':'')+' onchange="switchTheme(\''+t.id+'\')">'
+      +t.name+'</label>';
+  });
+  sel.innerHTML=html;
+  applyTheme(saved);
+}
+
+function switchTheme(id){
+  localStorage.setItem('astral-theme',id);
+  applyTheme(id);
+  initThemeSwitcher();
+}
+
+function applyTheme(id){
+  var t=THEMES.find(function(t){return t.id===id});
+  if(t){el('#theme-link').href=t.css;}
+}
+
+function showSettings(){switchTab('settings');initThemeSwitcher()}
 
 function loadProfiles(){
   fetch('/api/profiles').then(function(r){return r.json()}).then(function(d){

@@ -1,0 +1,23 @@
+/* Astral — 赛博朋克主题 */
+:root {
+  --bg: #0a0a0f; --bg2: #0f0f1a; --bg3: rgba(0,255,136,0.08); --border: rgba(0,255,136,0.1);
+  --text: #c8ffc8; --text2: #5a8a5a; --accent: #00ff88; --accent2: rgba(0,255,136,0.2);
+  --danger: #ff3366; --warn: #ffaa00;
+}
+
+body { font-family: Consolas, 'Courier New', monospace; font-size: 14px; }
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+#topbar { background: rgba(10,10,15,0.95); border-bottom-color: rgba(0,255,136,0.2); box-shadow: 0 0 20px rgba(0,255,136,0.05); }
+#npc-panel { border-right-color: rgba(0,255,136,0.1); }
+input, textarea, select { background: rgba(0,255,136,0.03); border-radius: 2px; font-family: inherit; }
+input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 8px rgba(0,255,136,0.15); outline: none; }
+button { border-radius: 2px; font-family: inherit; letter-spacing: 0.5px; }
+button.primary, .mini-btn.primary { background: rgba(0,255,136,0.15); color: var(--accent); border: 1px solid var(--accent); }
+button.primary:hover, .mini-btn.primary:hover { background: rgba(0,255,136,0.25); }
+.action-btn { border: 1px solid rgba(0,255,136,0.2); border-radius: 2px; letter-spacing: 0.5px; }
+.action-btn:hover { border-color: var(--accent); text-shadow: 0 0 6px rgba(0,255,136,0.4); }
+.logo { color: var(--accent); text-shadow: 0 0 10px rgba(0,255,136,0.4); }
+.prologue-sep, .round-sep { color: var(--accent); opacity: 0.8; text-shadow: 0 0 8px rgba(0,255,136,0.3); }

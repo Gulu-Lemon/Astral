@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Astral — 魔法少女的系列</title>
+<link rel="stylesheet" href="/themes/dark.css" id="theme-link">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -86,6 +87,10 @@
       <!-- 设置标签 -->
       <div id="settings-tab" style="display:none;">
         <h3>&#9881; API 配置 <button id="btn-settings-close" class="secondary" style="float:right;font-size:11px;padding:2px 10px;">返回游戏</button></h3>
+        <div class="settings-section" style="margin-bottom:12px;">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">界面主题</div>
+          <div id="theme-selector" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+        </div>
         <div class="modal-scroll" style="max-height:62vh;overflow-y:auto;padding-right:4px;">
           <div id="profile-list-inline" style="margin-bottom:12px;"></div>
           <div style="border-top:1px solid var(--border);padding-top:12px;">
